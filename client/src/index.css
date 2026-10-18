@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: #0C0C0C;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0C0C0C;
+  color: #F5F5F5;
+  font-family: 'Kanit', sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Gradient Typography */
+.hero-heading {
+  background: linear-gradient(180deg, #646973 0%, #BBCCD7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brand-gradient-text {
+  background: linear-gradient(135deg, #B600A8 0%, #7621B0 50%, #BE4C00 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom Contact Button from Figma Spec */
+.btn-contact-gradient {
+  background: linear-gradient(123deg, #18011F 7%, #B600A8 37%, #7621B0 72%, #BE4C00 100%);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.35), 0 4px 20px rgba(182, 0, 168, 0.25);
+  transition: all 200ms ease;
+}
+
+.btn-contact-gradient:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.5), 0 6px 25px rgba(182, 0, 168, 0.45);
+}
+
+.btn-contact-gradient:active {
+  transform: translateY(0);
+}
+
+/* Subtle Film Grain Overlay */
+.film-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Custom Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0C0C0C;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272A;
+  border-radius: 9999px;
+  border: 2px solid #0C0C0C;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B600A8;
+}
+
+/* Accessible focus ring */
+:focus-visible {
+  outline: 2px solid #B600A8;
+  outline-offset: 2px;
+}
+
+/* Reduced Motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
