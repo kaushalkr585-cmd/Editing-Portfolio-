@@ -159,7 +159,7 @@ export const Navbar = () => {
               onClick={(e) => handleNavClick(e, '#contact')}
               className="btn-contact-gradient text-center text-white py-3 rounded-full font-medium"
             >
-              Let's Work Together
+              Let's Talk
             </a>
             <Link
               to="/admin"

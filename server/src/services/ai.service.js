@@ -87,9 +87,9 @@ async function generateLocalBrief({ projectType, platform, audience, desiredStyl
       'Conclusion & CTA: Branded motion outro with clear call-to-action cards and audio sting.'
     ],
     recommendedWorkflow: [
-      'Stage 1: Ingestion, proxy workflow & timeline rough-cut focusing on story cadence.',
-      'Stage 2: Motion graphics, screen framing, kinetic subtitles, and visual accents.',
-      'Stage 3: DaVinci Resolve color science (film emulation, contrast balancing, skin-tone preservation).',
+      'Stage 1: Ingestion, proxy workflow & timeline rough-cut in Adobe Premiere Pro focusing on story cadence.',
+      'Stage 2: Motion graphics, screen framing, kinetic subtitles, and visual accents in Adobe After Effects.',
+      'Stage 3: Color Correction & Cinematic Color Grading (film emulation, contrast balancing, skin-tone preservation).',
       'Stage 4: Multi-track sound design (dialogue de-noising, foley, whooshes, stereo mastering to -14 LUFS).'
     ],
     recommendedService: matchingService.title,

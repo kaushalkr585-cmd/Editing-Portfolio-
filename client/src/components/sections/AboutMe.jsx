@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowUpRight } from 'lucide-react';
 import { FadeIn } from '../common/FadeIn';
 
 // Decorative asset URLs from Figma spec
@@ -42,14 +41,6 @@ export const AboutMe = ({ bio = DEFAULT_BIO }) => {
 
   const handleImageError = (key) => {
     setImageErrors((prev) => ({ ...prev, [key]: true }));
-  };
-
-  const handleScrollToContact = (e) => {
-    e.preventDefault();
-    const contactEl = document.getElementById('contact');
-    if (contactEl) {
-      contactEl.scrollIntoView({ behavior: 'smooth' });
-    }
   };
 
   return (
@@ -154,20 +145,6 @@ export const AboutMe = ({ bio = DEFAULT_BIO }) => {
             );
           })}
         </div>
-
-        {/* Contact Me Button with exact gradient & pill shape from Figma spec */}
-        <FadeIn delay={0.4} y={20}>
-          <div className="mt-12 sm:mt-16">
-            <a
-              href="#contact"
-              onClick={handleScrollToContact}
-              className="btn-contact-gradient inline-flex items-center gap-2.5 px-8 sm:px-10 py-3.5 sm:py-4 rounded-full text-white font-medium text-sm sm:text-base border border-white/20"
-            >
-              Contact Me
-              <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5" />
-            </a>
-          </div>
-        </FadeIn>
       </div>
     </section>
   );

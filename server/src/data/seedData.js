@@ -49,7 +49,7 @@ export const seedServices = [
       "Location callouts and amenity overlays",
       "Vertical 9:16 reels for Instagram and TikTok"
     ],
-    keySkills: ["DaVinci Resolve", "Color Grading", "Speed Ramping", "Sky Replacement"],
+    keySkills: ["Adobe Premiere Pro", "Cinematic Color Grading", "Speed Ramping", "Sky Replacement"],
     turnaround: "2 - 4 business days",
     iconName: "Home",
     order: 2
@@ -211,7 +211,7 @@ export const seedServices = [
       "Dialogue cleanup, de-essing, and mastering to -14 LUFS",
       "Multi-layered foley, whooshes, risers, and impact hits"
     ],
-    keySkills: ["DaVinci Resolve", "Color Science", "Audio Mastering", "Foley"],
+    keySkills: ["Adobe Premiere Pro", "Adobe After Effects", "Color Correction & Cinematic Color Grading", "Audio Mastering"],
     turnaround: "2 - 4 business days",
     iconName: "Sliders",
     order: 11
@@ -247,7 +247,7 @@ export const seedFaqs = [
   },
   {
     question: "What software and color grading tools do you use?",
-    answer: "My core workflow runs on DaVinci Resolve Studio (for industry-standard color grading and mastering), Adobe Premiere Pro, After Effects (for complex motion graphics, tracking, and VFX), and iZotope RX (for audio cleanup and sound engineering)."
+    answer: "My core workflow runs on Adobe Premiere Pro (for precision cutting, pacing, sequencing, and timeline workflows) and Adobe After Effects (for complex motion graphics, tracking, VFX, and animation), with professional cinematic color grading and audio mastering."
   },
   {
     question: "How do revisions work?",
@@ -292,7 +292,7 @@ export const seedPricingPackages = [
     deliverables: [
       "Up to 15 minutes or multiple ad cuts",
       "Advanced motion graphics & 3D UI framing",
-      "DaVinci Resolve cinematic film color grade",
+      "Cinematic film color grade & correction",
       "Full multi-track sound engineering & foley",
       "Multi-ratio exports (16:9 + 9:16 + 1:1)",
       "3 rounds of revisions",

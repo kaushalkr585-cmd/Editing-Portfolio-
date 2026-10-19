@@ -73,7 +73,7 @@ async function runTests() {
         name: 'Integration Tester',
         email: 'tester@brand.com',
         projectType: 'Commercials',
-        description: 'Need a 30s broadcast commercial with high energy and DaVinci color grading.',
+        description: 'Need a 30s broadcast commercial with high energy and cinematic color grading.',
       }),
     });
     assert.strictEqual(res.status, 201);

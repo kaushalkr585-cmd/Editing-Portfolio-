@@ -168,7 +168,7 @@ export const FeaturedShowreel = ({
             Featured Showreel
           </h2>
           <p className="text-[#A6A6A6] text-sm sm:text-base max-w-2xl mx-auto mt-2">
-            A montage of high-energy commercial edits, 3D motion graphics, anime cuts, and DaVinci Resolve color grades.
+            A montage of high-energy commercial edits, 3D motion graphics, anime cuts, and cinematic color grades.
           </p>
         </FadeIn>
 

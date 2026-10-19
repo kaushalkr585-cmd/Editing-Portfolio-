@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus, ArrowUpRight } from 'lucide-react';
+import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
 import { ProjectModal } from './ProjectModal';
@@ -198,15 +198,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
                 Portfolio projects are currently being curated. Check back soon for new video releases, or access the studio dashboard to publish your cuts.
               </p>
 
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                <a
-                  href="#contact"
-                  className="btn-contact-gradient px-7 py-3 rounded-full text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-lg"
-                >
-                  Start A Project Inquiry
-                  <ArrowUpRight className="w-4 h-4" />
-                </a>
-
+              <div className="mt-8 flex justify-center">
                 <Link
                   to="/admin"
                   className="px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 text-white text-xs sm:text-sm font-medium border border-white/10 transition-colors flex items-center gap-2"

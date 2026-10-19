@@ -13,7 +13,7 @@ const FAQS = [
   },
   {
     q: 'What post-production editing tools do you use?',
-    a: 'My primary stack includes DaVinci Resolve Studio (for industry-standard color grading and Fairlight audio mastering), Adobe Premiere Pro, After Effects (for complex motion graphics, rotoscoping, and 3D screen tracking), and iZotope RX (for professional dialogue noise reduction and de-reverberation).',
+    a: 'My core workflow runs on Adobe Premiere Pro (for precision cutting, pacing, sequencing, and timeline workflows) and Adobe After Effects (for motion graphics, visual effects, compositing, 3D tracking, masking, kinetic typography, and animation), with professional color correction, cinematic color grading, and audio mastering.',
   },
   {
     q: 'How do project revisions and client feedback work?',
