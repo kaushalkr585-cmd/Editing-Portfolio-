@@ -1,21 +1,38 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Project } from '../models/Project.js';
+import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { Inquiry } from '../models/Inquiry.js';
 import { Settings } from '../models/Settings.js';
 import { User } from '../models/User.js';
 import { getDbStatus } from '../config/db.js';
-import { seedProjects, seedServices } from '../data/seedData.js';
+import { seedProjects, seedServices, initialCategories } from '../data/seedData.js';
+import { CloudinaryService } from './cloudinary.service.js';
 import bcrypt from 'bcryptjs';
 
-// In-Memory state for fallback mode
-let memoryProjects = [...seedProjects];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.resolve(__dirname, '../../data');
+const DB_FILE = path.join(DATA_DIR, 'portfolio-db.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// In-Memory state backed by persistent file
+let memoryProjects = [];
+let memoryCategories = [...initialCategories];
 let memoryServices = [...seedServices];
 let memoryInquiries = [];
 let memorySettings = {
   heroHeadline: 'I TURN RAW FOOTAGE INTO VISUAL EXPERIENCES.',
   heroSupporting: 'From cinematic edits to high-converting brand videos, I craft visuals that capture attention, communicate ideas, and leave an impression.',
-  showreelUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-  showreelPoster: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1600&auto=format&fit=crop',
+  showreelUrl: '',
+  showreelPoster: '',
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
   contactEmail: 'contact@kaushalkumar.com',
   socialLinks: {
     youtube: 'https://youtube.com/@kaushalkumar',
@@ -27,15 +44,62 @@ let memorySettings = {
 };
 let memoryUsers = [];
 
-// Initialize seed data into MongoDB if connected and empty
+// Load persistent data from disk if file exists
+function loadPersistentFile() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.projects)) memoryProjects = data.projects;
+      if (Array.isArray(data.categories) && data.categories.length > 0) memoryCategories = data.categories;
+      if (Array.isArray(data.services) && data.services.length > 0) memoryServices = data.services;
+      if (Array.isArray(data.inquiries)) memoryInquiries = data.inquiries;
+      if (data.settings) memorySettings = { ...memorySettings, ...data.settings };
+      if (Array.isArray(data.users)) memoryUsers = data.users;
+      console.log(`[DataStore] Loaded persistent data: ${memoryProjects.length} projects, ${memoryCategories.length} categories.`);
+    } else {
+      savePersistentFile();
+    }
+  } catch (err) {
+    console.warn('[DataStore] Failed to load portfolio-db.json:', err.message);
+  }
+}
+
+// Save memory state to disk
+function savePersistentFile() {
+  try {
+    const payload = {
+      projects: memoryProjects,
+      categories: memoryCategories,
+      services: memoryServices,
+      inquiries: memoryInquiries,
+      settings: memorySettings,
+      users: memoryUsers,
+      savedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[DataStore] Failed to write portfolio-db.json:', err.message);
+  }
+}
+
+// Initialize on startup
+loadPersistentFile();
+
+if (memorySettings.cloudinaryCloudName) {
+  CloudinaryService.setCloudName(memorySettings.cloudinaryCloudName);
+}
+
 export const initializeDataStore = async () => {
   if (getDbStatus()) {
     try {
-      const projectCount = await Project.countDocuments();
-      if (projectCount === 0) {
-        console.log('[DataStore] Seeding projects into MongoDB...');
-        await Project.insertMany(seedProjects.map(p => ({ ...p, _id: undefined })));
+      // Seed categories in MongoDB if empty
+      const catCount = await Category.countDocuments();
+      if (catCount === 0) {
+        console.log('[DataStore] Seeding initial categories into MongoDB...');
+        await Category.insertMany(initialCategories.map(c => ({ ...c, _id: undefined })));
       }
+      // Seed services in MongoDB if empty
       const serviceCount = await Service.countDocuments();
       if (serviceCount === 0) {
         console.log('[DataStore] Seeding services into MongoDB...');
@@ -48,14 +112,131 @@ export const initializeDataStore = async () => {
 };
 
 export const DataStore = {
-  // Projects
+  // Categories CRUD
+  getCategories: async () => {
+    if (getDbStatus()) {
+      try {
+        const list = await Category.find().sort({ order: 1, name: 1 });
+        if (list.length > 0) return list;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB getCategories error:', err.message);
+      }
+    }
+    return [...memoryCategories].sort((a, b) => (a.order || 0) - (b.order || 0));
+  },
+
+  getCategoryByIdOrSlug: async (identifier) => {
+    if (getDbStatus()) {
+      try {
+        const cat = await Category.findOne({
+          $or: [
+            { _id: identifier.match(/^[0-9a-fA-F]{24}$/) ? identifier : null },
+            { slug: identifier },
+            { id: identifier },
+            { name: identifier }
+          ].filter(Boolean)
+        });
+        if (cat) return cat;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB getCategory error:', err.message);
+      }
+    }
+    return memoryCategories.find(c => c.id === identifier || c.slug === identifier || c.name === identifier || c._id === identifier);
+  },
+
+  createCategory: async ({ name, description = '', order = 0 }) => {
+    const slug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+
+    if (getDbStatus()) {
+      try {
+        const created = await Category.create({ name: name.trim(), slug, description: description.trim(), order: Number(order) || 0 });
+        return created;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB createCategory error:', err.message);
+      }
+    }
+
+    const newCat = {
+      id: 'cat-' + Date.now(),
+      name: name.trim(),
+      slug,
+      description: description.trim(),
+      order: Number(order) || memoryCategories.length + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    memoryCategories.push(newCat);
+    savePersistentFile();
+    return newCat;
+  },
+
+  updateCategory: async (id, updateData) => {
+    if (updateData.name && !updateData.slug) {
+      updateData.slug = updateData.name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+    }
+
+    if (getDbStatus()) {
+      try {
+        const updated = await Category.findOneAndUpdate(
+          { $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }, { slug: id }].filter(Boolean) },
+          { $set: updateData },
+          { new: true }
+        );
+        if (updated) return updated;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB updateCategory error:', err.message);
+      }
+    }
+
+    const idx = memoryCategories.findIndex(c => c.id === id || c.slug === id || c._id === id);
+    if (idx !== -1) {
+      memoryCategories[idx] = { ...memoryCategories[idx], ...updateData, updatedAt: new Date().toISOString() };
+      savePersistentFile();
+      return memoryCategories[idx];
+    }
+    return null;
+  },
+
+  deleteCategory: async (id) => {
+    let oldCategoryName = '';
+    const idx = memoryCategories.findIndex(c => c.id === id || c.slug === id || c._id === id);
+    if (idx !== -1) {
+      oldCategoryName = memoryCategories[idx].name;
+      memoryCategories.splice(idx, 1);
+      savePersistentFile();
+    }
+
+    if (getDbStatus()) {
+      try {
+        await Category.findOneAndDelete({
+          $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }, { slug: id }].filter(Boolean)
+        });
+      } catch (err) {
+        console.warn('[DataStore] MongoDB deleteCategory error:', err.message);
+      }
+    }
+
+    return true;
+  },
+
+  // Projects CRUD
   getProjects: async ({ category, search, featured, publishedOnly = true }) => {
     if (getDbStatus()) {
       try {
         const query = {};
         if (publishedOnly) query.published = true;
         if (featured !== undefined) query.featured = featured === 'true' || featured === true;
-        if (category && category !== 'All Work') query.category = category;
+        if (category && category !== 'All Work') {
+          query.$or = [{ category }, { categoryId: category }];
+        }
         if (search) {
           query.$or = [
             { title: { $regex: search, $options: 'i' } },
@@ -69,7 +250,6 @@ export const DataStore = {
       }
     }
 
-    // In-memory fallback
     let list = [...memoryProjects];
     if (publishedOnly) {
       list = list.filter(p => p.published);
@@ -79,14 +259,18 @@ export const DataStore = {
       list = list.filter(p => p.featured === isFeat);
     }
     if (category && category !== 'All Work') {
-      list = list.filter(p => p.category.toLowerCase() === category.toLowerCase());
+      const catLower = category.toLowerCase();
+      list = list.filter(p => 
+        (p.category && p.category.toLowerCase() === catLower) ||
+        (p.categoryId && p.categoryId.toLowerCase() === catLower)
+      );
     }
     if (search) {
       const s = search.toLowerCase();
       list = list.filter(p => 
         p.title.toLowerCase().includes(s) || 
-        p.description.toLowerCase().includes(s) || 
-        p.tags.some(t => t.toLowerCase().includes(s))
+        (p.description && p.description.toLowerCase().includes(s)) || 
+        (Array.isArray(p.tags) && p.tags.some(t => t.toLowerCase().includes(s)))
       );
     }
     return list.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -113,6 +297,7 @@ export const DataStore = {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '') + '-' + Date.now();
     }
+
     if (getDbStatus()) {
       try {
         const created = await Project.create(projectData);
@@ -121,13 +306,15 @@ export const DataStore = {
         console.warn('[DataStore] MongoDB createProject error:', err.message);
       }
     }
+
     const newProj = {
       ...projectData,
       id: 'proj-' + Date.now(),
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     memoryProjects.unshift(newProj);
+    savePersistentFile();
     return newProj;
   },
 
@@ -144,31 +331,50 @@ export const DataStore = {
         console.warn('[DataStore] MongoDB updateProject error:', err.message);
       }
     }
+
     const idx = memoryProjects.findIndex(p => p.id === id || p.slug === id || p._id === id);
     if (idx !== -1) {
       memoryProjects[idx] = { ...memoryProjects[idx], ...updateData, updatedAt: new Date().toISOString() };
+      savePersistentFile();
       return memoryProjects[idx];
     }
     return null;
   },
 
   deleteProject: async (id) => {
+    let projToDelete = memoryProjects.find(p => p.id === id || p.slug === id || p._id === id);
+
     if (getDbStatus()) {
       try {
-        const res = await Project.findOneAndDelete({
+        const doc = await Project.findOne({
           $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }, { slug: id }].filter(Boolean)
         });
-        if (res) return true;
+        if (doc) {
+          projToDelete = doc;
+          await Project.findByIdAndDelete(doc._id);
+        }
       } catch (err) {
         console.warn('[DataStore] MongoDB deleteProject error:', err.message);
       }
     }
+
+    // Clean up Cloudinary asset if public ID is present
+    if (projToDelete && projToDelete.cloudinaryPublicId) {
+      try {
+        console.log(`[DataStore] Deleting Cloudinary video asset: ${projToDelete.cloudinaryPublicId}`);
+        await CloudinaryService.deleteAsset(projToDelete.cloudinaryPublicId, 'video');
+      } catch (e) {
+        console.warn('[DataStore] Cloudinary asset delete warning:', e.message);
+      }
+    }
+
     const idx = memoryProjects.findIndex(p => p.id === id || p.slug === id || p._id === id);
     if (idx !== -1) {
       memoryProjects.splice(idx, 1);
+      savePersistentFile();
       return true;
     }
-    return false;
+    return Boolean(projToDelete);
   },
 
   // Services
@@ -198,9 +404,10 @@ export const DataStore = {
       _id: 'inq-' + Date.now(),
       status: 'new',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     memoryInquiries.unshift(newInquiry);
+    savePersistentFile();
     return newInquiry;
   },
 
@@ -227,17 +434,18 @@ export const DataStore = {
     if (inq) {
       inq.status = status;
       inq.updatedAt = new Date().toISOString();
+      savePersistentFile();
       return inq;
     }
     return null;
   },
 
-  // Users & Admin
+  // Admin Users
   hasAdminUser: async () => {
     if (getDbStatus()) {
       try {
         const count = await User.countDocuments();
-        return count > 0;
+        if (count > 0) return true;
       } catch (err) {
         console.warn('[DataStore] MongoDB user count error:', err.message);
       }
@@ -267,6 +475,7 @@ export const DataStore = {
       comparePassword: async (pwd) => bcrypt.compare(pwd, passwordHash),
     };
     memoryUsers.push(newUser);
+    savePersistentFile();
     return { id: newUser._id, username: newUser.username, email: newUser.email };
   },
 
@@ -282,7 +491,14 @@ export const DataStore = {
         console.warn('[DataStore] MongoDB findUser error:', err.message);
       }
     }
-    return memoryUsers.find(u => u.email.toLowerCase() === ident || u.username.toLowerCase() === ident);
+    const u = memoryUsers.find(u => u.email.toLowerCase() === ident || u.username.toLowerCase() === ident);
+    if (u) {
+      return {
+        ...u,
+        comparePassword: async (pwd) => bcrypt.compare(pwd, u.password),
+      };
+    }
+    return null;
   },
 
   // Settings
@@ -299,6 +515,10 @@ export const DataStore = {
   },
 
   updateSettings: async (newSettings) => {
+    if (newSettings.cloudinaryCloudName) {
+      CloudinaryService.setCloudName(newSettings.cloudinaryCloudName);
+    }
+
     if (getDbStatus()) {
       try {
         const s = await Settings.findOneAndUpdate({}, { $set: newSettings }, { upsert: true, new: true });
@@ -308,6 +528,7 @@ export const DataStore = {
       }
     }
     memorySettings = { ...memorySettings, ...newSettings };
+    savePersistentFile();
     return memorySettings;
-  }
+  },
 };

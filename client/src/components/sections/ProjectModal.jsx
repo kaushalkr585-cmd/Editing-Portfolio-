@@ -105,11 +105,6 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
                 <span className="text-xs uppercase font-semibold text-[#B600A8] bg-[#B600A8]/10 px-2.5 py-0.5 rounded-full border border-[#B600A8]/20">
                   {project.category}
                 </span>
-                {project.isDemo && (
-                  <span className="text-[10px] font-mono uppercase text-[#BBCCD7] bg-white/5 px-2 py-0.5 rounded border border-white/10">
-                    Portfolio Demonstration
-                  </span>
-                )}
                 {project.featured && (
                   <span className="text-[10px] font-medium text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
                     Featured

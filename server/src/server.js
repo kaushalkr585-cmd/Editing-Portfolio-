@@ -10,6 +10,7 @@ import { initializeDataStore } from './services/dataStore.js';
 // Route imports
 import authRoutes from './routes/auth.routes.js';
 import projectsRoutes from './routes/projects.routes.js';
+import categoriesRoutes from './routes/categories.routes.js';
 import servicesRoutes from './routes/services.routes.js';
 import inquiriesRoutes from './routes/inquiries.routes.js';
 import aiRoutes from './routes/ai.routes.js';
@@ -45,6 +46,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectsRoutes);
+app.use('/api/categories', categoriesRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/inquiries', inquiriesRoutes);
 app.use('/api/ai', aiRoutes);

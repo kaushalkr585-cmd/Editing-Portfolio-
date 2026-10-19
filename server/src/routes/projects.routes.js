@@ -61,13 +61,39 @@ router.get('/:idOrSlug', async (req, res) => {
  */
 router.post('/', requireAdminAuth, async (req, res) => {
   try {
-    const { title, category, description, videoUrl, thumbnailUrl, cloudinaryPublicId, duration, aspectRatio, featured, published, client, tags } = req.body;
+    const {
+      title,
+      category,
+      categoryId,
+      description,
+      videoUrl,
+      thumbnailUrl,
+      cloudinaryPublicId,
+      duration,
+      aspectRatio,
+      featured,
+      published,
+      client,
+      tags,
+    } = req.body;
 
-    if (!title || !category || !description) {
-      return res.status(400).json({
-        success: false,
-        message: 'Title, category, and description are required.',
-      });
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Project title is required.' });
+    }
+
+    if (!category && !categoryId) {
+      return res.status(400).json({ success: false, message: 'Project category is required.' });
+    }
+
+    let resolvedCategory = category;
+    let resolvedCategoryId = categoryId || '';
+
+    // If categoryId provided, look up category name
+    if (categoryId && !category) {
+      const cat = await DataStore.getCategoryByIdOrSlug(categoryId);
+      if (cat) {
+        resolvedCategory = cat.name;
+      }
     }
 
     let finalVideoUrl = videoUrl;
@@ -76,11 +102,11 @@ router.post('/', requireAdminAuth, async (req, res) => {
     // If Cloudinary public ID is provided, generate optimized Cloudinary delivery URLs
     if (cloudinaryPublicId && CloudinaryService.isConfigured()) {
       const urls = CloudinaryService.getVideoDeliveryUrls(cloudinaryPublicId, videoUrl, thumbnailUrl);
-      finalVideoUrl = urls.videoUrl;
-      if (!thumbnailUrl) finalThumbnail = urls.thumbnailUrl;
+      if (!finalVideoUrl) finalVideoUrl = urls.videoUrl;
+      if (!finalThumbnail) finalThumbnail = urls.thumbnailUrl;
     }
 
-    if (!finalVideoUrl) {
+    if (!finalVideoUrl && !cloudinaryPublicId) {
       return res.status(400).json({
         success: false,
         message: 'A video URL or Cloudinary Public ID is required.',
@@ -88,18 +114,19 @@ router.post('/', requireAdminAuth, async (req, res) => {
     }
 
     const created = await DataStore.createProject({
-      title,
-      category,
-      description,
-      videoUrl: finalVideoUrl,
-      thumbnailUrl: finalThumbnail || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop',
-      cloudinaryPublicId: cloudinaryPublicId || '',
+      title: title.trim(),
+      category: resolvedCategory || 'General',
+      categoryId: resolvedCategoryId,
+      description: description ? description.trim() : '',
+      videoUrl: finalVideoUrl || '',
+      thumbnailUrl: finalThumbnail || '',
+      cloudinaryPublicId: cloudinaryPublicId ? cloudinaryPublicId.trim() : '',
       duration: duration || '0:30',
       aspectRatio: aspectRatio || '16:9',
       featured: Boolean(featured),
       published: published !== undefined ? Boolean(published) : true,
-      client: client || 'Client Work',
-      tags: Array.isArray(tags) ? tags : typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : [],
+      client: client ? client.trim() : '',
+      tags: Array.isArray(tags) ? tags : typeof tags === 'string' ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       isDemo: false,
     });
 
@@ -118,7 +145,24 @@ router.post('/', requireAdminAuth, async (req, res) => {
  */
 router.put('/:id', requireAdminAuth, async (req, res) => {
   try {
-    const updated = await DataStore.updateProject(req.params.id, req.body);
+    const updateData = { ...req.body };
+
+    // If updating Cloudinary public ID, refresh URLs if needed
+    if (updateData.cloudinaryPublicId && CloudinaryService.isConfigured()) {
+      const urls = CloudinaryService.getVideoDeliveryUrls(
+        updateData.cloudinaryPublicId,
+        updateData.videoUrl,
+        updateData.thumbnailUrl
+      );
+      if (!updateData.videoUrl) updateData.videoUrl = urls.videoUrl;
+      if (!updateData.thumbnailUrl) updateData.thumbnailUrl = urls.thumbnailUrl;
+    }
+
+    if (typeof updateData.tags === 'string') {
+      updateData.tags = updateData.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    }
+
+    const updated = await DataStore.updateProject(req.params.id, updateData);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -133,7 +177,7 @@ router.put('/:id', requireAdminAuth, async (req, res) => {
 });
 
 /**
- * Admin: Delete project
+ * Admin: Delete project (removes database record AND corresponding Cloudinary asset)
  */
 router.delete('/:id', requireAdminAuth, async (req, res) => {
   try {
@@ -143,7 +187,7 @@ router.delete('/:id', requireAdminAuth, async (req, res) => {
     }
     res.json({
       success: true,
-      message: 'Project deleted successfully',
+      message: 'Project and associated video assets deleted successfully',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

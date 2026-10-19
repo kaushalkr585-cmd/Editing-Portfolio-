@@ -12,11 +12,15 @@ const settingsSchema = new mongoose.Schema(
     },
     showreelUrl: {
       type: String,
-      default: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+      default: '',
     },
     showreelPoster: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1600&auto=format&fit=crop',
+      default: '',
+    },
+    cloudinaryCloudName: {
+      type: String,
+      default: '',
     },
     contactEmail: {
       type: String,

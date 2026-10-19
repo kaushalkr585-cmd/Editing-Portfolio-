@@ -51,22 +51,25 @@ async function callNemotronAPI(messages, temperature = 0.3, maxTokens = 1500) {
   }
 }
 
+import { DataStore } from './dataStore.js';
+
 /**
  * Deterministic local fallback generator for Creative Project Brief
  */
-function generateLocalBrief({ projectType, platform, audience, desiredStyle, duration, references, budget, deadline }) {
+async function generateLocalBrief({ projectType, platform, audience, desiredStyle, duration, references, budget, deadline }) {
   const matchingService = seedServices.find(s => 
-    s.title.toLowerCase().includes(projectType.toLowerCase()) || 
-    s.category.toLowerCase().includes(projectType.toLowerCase())
+    s.title.toLowerCase().includes((projectType || '').toLowerCase()) || 
+    s.category.toLowerCase().includes((projectType || '').toLowerCase())
   ) || seedServices[0];
 
-  const suggestedProjects = seedProjects
-    .filter(p => p.category.toLowerCase().includes(projectType.toLowerCase()) || p.tags.some(t => projectType.toLowerCase().includes(t.toLowerCase())))
+  const publishedProjects = await DataStore.getProjects({ publishedOnly: true });
+  const suggestedProjects = publishedProjects
+    .filter(p => p.category?.toLowerCase().includes((projectType || '').toLowerCase()) || (Array.isArray(p.tags) && p.tags.some(t => (projectType || '').toLowerCase().includes(t.toLowerCase()))))
     .slice(0, 2);
 
   const referenceProjects = suggestedProjects.length > 0 
     ? suggestedProjects.map(p => `- ${p.title} (${p.category})`).join('\n')
-    : `- ApexFlow SaaS Platform Launch (SaaS & Product)\n- Highland Mist: Icelandic Roadtrip Film (Travel & Cinematic)`;
+    : `Custom ${projectType || 'creative'} assignment — crafted to your exact specifications.`;
 
   return {
     isDemoFallback: !process.env.NVIDIA_API_KEY,
@@ -104,7 +107,7 @@ function generateLocalBrief({ projectType, platform, audience, desiredStyle, dur
 /**
  * Deterministic local fallback generator for Service & Project Recommendations
  */
-function generateLocalRecommendations(query) {
+async function generateLocalRecommendations(query) {
   const q = (query || '').toLowerCase();
   
   // Score services
@@ -118,7 +121,6 @@ function generateLocalRecommendations(query) {
     svc.keySkills.forEach(k => {
       if (q.includes(k.toLowerCase())) score += 3;
     });
-    // Keyword heuristics
     if ((q.includes('saas') || q.includes('software') || q.includes('app')) && svc.id === 'srv-saas') score += 15;
     if ((q.includes('real estate') || q.includes('house') || q.includes('property')) && svc.id === 'srv-real-estate') score += 15;
     if ((q.includes('anime') || q.includes('amv') || q.includes('manga')) && svc.id === 'srv-amv') score += 15;
@@ -134,14 +136,17 @@ function generateLocalRecommendations(query) {
 
   const topServices = (scoredServices[0].score > 0 ? scoredServices.slice(0, 2) : scoredServices.slice(0, 2)).map(s => s.service);
 
-  // Score projects
-  const scoredProjects = seedProjects.map(proj => {
+  // Score real published projects
+  const publishedProjects = await DataStore.getProjects({ publishedOnly: true });
+  const scoredProjects = publishedProjects.map(proj => {
     let score = 0;
-    if (q.includes(proj.category.toLowerCase())) score += 8;
-    proj.tags.forEach(t => {
-      if (q.includes(t.toLowerCase())) score += 4;
-    });
-    if (topServices.some(s => s.title.includes(proj.category) || proj.category.includes(s.title))) score += 5;
+    if (proj.category && q.includes(proj.category.toLowerCase())) score += 8;
+    if (Array.isArray(proj.tags)) {
+      proj.tags.forEach(t => {
+        if (q.includes(t.toLowerCase())) score += 4;
+      });
+    }
+    if (topServices.some(s => s.title.includes(proj.category) || (proj.category && proj.category.includes(s.title)))) score += 5;
     return { project: proj, score };
   }).sort((a, b) => b.score - a.score);
 
@@ -208,7 +213,7 @@ Deadline: ${deadline || 'Standard'}`;
       }
     }
 
-    return generateLocalBrief(input);
+    return await generateLocalBrief(input);
   },
 
   /**
@@ -236,19 +241,16 @@ Output valid JSON matching:
         const cleaned = apiResult.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleaned);
         
-        const matchedServices = seedServices.filter(s => 
-          parsed.recommendedServiceTitles?.some(title => s.title.toLowerCase().includes(title.toLowerCase()))
-        );
-
-        const matchedProjects = seedProjects.filter(p =>
-          matchedServices.some(s => s.title.includes(p.category) || p.category.includes(s.title))
+        const publishedProjects = await DataStore.getProjects({ publishedOnly: true });
+        const matchedProjects = publishedProjects.filter(p =>
+          matchedServices.some(s => s.title.includes(p.category) || (p.category && p.category.includes(s.title)))
         ).slice(0, 3);
 
         return {
           isDemoFallback: false,
           analysis: parsed.analysis,
           recommendedServices: matchedServices.length > 0 ? matchedServices : seedServices.slice(0, 2),
-          matchingProjects: matchedProjects.length > 0 ? matchedProjects : seedProjects.slice(0, 3),
+          matchingProjects: matchedProjects,
           suggestedNextSteps: parsed.suggestedNextSteps || "You can generate a detailed creative brief or submit a project inquiry below."
         };
       } catch (err) {
@@ -256,6 +258,6 @@ Output valid JSON matching:
       }
     }
 
-    return generateLocalRecommendations(query);
+    return await generateLocalRecommendations(query);
   }
 };

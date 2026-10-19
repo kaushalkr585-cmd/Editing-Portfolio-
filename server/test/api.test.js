@@ -25,27 +25,19 @@ async function runTests() {
     assert.strictEqual(data.status, 'ok');
   });
 
-  // 2. Projects
-  await test('GET /api/projects returns 12 initial projects', async () => {
+  // 2. Categories & Dynamic Project Management
+  await test('GET /api/categories returns category list', async () => {
+    const res = await fetch(`${BASE_URL}/api/categories`);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(Array.isArray(data.data), true);
+  });
+
+  await test('GET /api/projects returns valid project list (array)', async () => {
     const res = await fetch(`${BASE_URL}/api/projects`);
     const data = await res.json();
     assert.strictEqual(data.success, true);
-    assert.strictEqual(data.data.length >= 12, true);
-  });
-
-  await test('GET /api/projects?category=SaaS & Product filters properly', async () => {
-    const res = await fetch(`${BASE_URL}/api/projects?category=${encodeURIComponent('SaaS & Product')}`);
-    const data = await res.json();
-    assert.strictEqual(data.success, true);
-    assert.strictEqual(data.data.length > 0, true);
-    data.data.forEach(p => assert.strictEqual(p.category, 'SaaS & Product'));
-  });
-
-  await test('GET /api/projects?search=Cyberpunk finds matching project', async () => {
-    const res = await fetch(`${BASE_URL}/api/projects?search=Cyberpunk`);
-    const data = await res.json();
-    assert.strictEqual(data.success, true);
-    assert.strictEqual(data.data.length > 0, true);
+    assert.strictEqual(Array.isArray(data.data), true);
   });
 
   // 3. Services
@@ -183,7 +175,102 @@ async function runTests() {
     assert.strictEqual(data.user.role, 'admin');
   });
 
-  // 8. Admin Project CRUD
+  // 8. Admin Category CRUD
+  let createdCatId = '';
+  await test('POST /api/categories creates category with admin auth', async () => {
+    const res = await fetch(`${BASE_URL}/api/categories`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'VFX & Motion Graphics',
+        description: 'Visual effects, 3D compositing and CGI.',
+      }),
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.name, 'VFX & Motion Graphics');
+    createdCatId = data.data._id || data.data.id;
+    assert.ok(createdCatId);
+  });
+
+  await test('PUT /api/categories/:id updates category', async () => {
+    const res = await fetch(`${BASE_URL}/api/categories/${createdCatId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'VFX & 3D Motion',
+      }),
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.data.name, 'VFX & 3D Motion');
+  });
+
+  await test('DELETE /api/categories/:id deletes category', async () => {
+    const res = await fetch(`${BASE_URL}/api/categories/${createdCatId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+  });
+
+  // 9. Cloudinary Configuration & Signature Generation
+  await test('GET /api/cloudinary/config returns public config and never exposes secrets', async () => {
+    const res = await fetch(`${BASE_URL}/api/cloudinary/config`);
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(typeof data.data.isConfigured, 'boolean');
+    assert.strictEqual(data.data.apiSecret, undefined); // Secret must never be exposed
+  });
+
+  await test('POST /api/cloudinary/cloud-name sets cloud name dynamically', async () => {
+    const res = await fetch(`${BASE_URL}/api/cloudinary/cloud-name`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        cloudName: 'test-portfolio-cloud',
+      }),
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.cloudName, 'test-portfolio-cloud');
+  });
+
+  await test('POST /api/cloudinary/signature generates valid signed params for admin', async () => {
+    const res = await fetch(`${BASE_URL}/api/cloudinary/signature`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        folder: 'editing-portfolio/videos',
+      }),
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+    assert.ok(data.data.signature);
+    assert.ok(data.data.timestamp);
+    assert.strictEqual(data.data.apiKey, '345889382685534');
+    assert.strictEqual(data.data.cloudName, 'test-portfolio-cloud');
+  });
+
+  // 10. Admin Project CRUD & Dynamic Filtering
   let createdProjId = '';
   await test('POST /api/projects creates new project with admin auth', async () => {
     const res = await fetch(`${BASE_URL}/api/projects`, {
@@ -193,11 +280,11 @@ async function runTests() {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        title: 'Nebula Esports Tournament Teaser',
-        category: 'Gaming',
+        title: 'Cyberpunk Teaser Trailer',
+        category: 'Movie Edits',
         description: 'High-octane tournament teaser with 3D text and motion tracking.',
-        videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1542751110-97427bbecf20?q=80&w=1200&auto=format&fit=crop',
+        videoUrl: 'https://res.cloudinary.com/demo/video/upload/sample.mp4',
+        thumbnailUrl: 'https://res.cloudinary.com/demo/video/upload/sample.jpg',
         duration: '0:35',
         aspectRatio: '16:9',
         featured: true,
@@ -211,6 +298,22 @@ async function runTests() {
     assert.ok(createdProjId);
   });
 
+  await test('GET /api/projects?search=Cyberpunk finds created project', async () => {
+    const res = await fetch(`${BASE_URL}/api/projects?search=Cyberpunk`);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.length >= 1, true);
+    assert.strictEqual(data.data[0].title, 'Cyberpunk Teaser Trailer');
+  });
+
+  await test('GET /api/projects?category=Movie Edits filters created project', async () => {
+    const res = await fetch(`${BASE_URL}/api/projects?category=${encodeURIComponent('Movie Edits')}`);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.length >= 1, true);
+    data.data.forEach(p => assert.strictEqual(p.category, 'Movie Edits'));
+  });
+
   await test('PUT /api/projects/:id updates project', async () => {
     const res = await fetch(`${BASE_URL}/api/projects/${createdProjId}`, {
       method: 'PUT',
@@ -219,12 +322,12 @@ async function runTests() {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        title: 'Nebula Esports Tournament Teaser (Updated)',
+        title: 'Cyberpunk Teaser Trailer (Director Cut)',
       }),
     });
     const data = await res.json();
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(data.data.title, 'Nebula Esports Tournament Teaser (Updated)');
+    assert.strictEqual(data.data.title, 'Cyberpunk Teaser Trailer (Director Cut)');
   });
 
   await test('DELETE /api/projects/:id deletes project', async () => {

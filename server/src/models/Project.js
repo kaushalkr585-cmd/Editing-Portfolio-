@@ -17,21 +17,13 @@ const projectSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      required: true,
-      enum: [
-        'SaaS & Product',
-        'Real Estate',
-        'AMVs',
-        'Movie Edits',
-        'Podcasts',
-        'YouTube',
-        'Reels & Shorts',
-        'Gaming',
-        'Commercials',
-        'Motion Graphics & VFX',
-        'Travel & Cinematic',
-        'Other'
-      ],
+      required: [true, 'Project category is required'],
+      trim: true,
+    },
+    categoryId: {
+      type: String,
+      trim: true,
+      default: '',
     },
     description: {
       type: String,
