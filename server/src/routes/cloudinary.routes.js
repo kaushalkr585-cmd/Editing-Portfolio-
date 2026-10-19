@@ -16,6 +16,18 @@ router.get('/config', (req, res) => {
 });
 
 /**
+ * Admin: Live Verification of Cloudinary API credentials
+ */
+router.get('/verify', requireAdminAuth, async (req, res) => {
+  try {
+    const result = await CloudinaryService.verifyCredentials();
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * Admin: Update Cloudinary Cloud Name dynamically
  */
 router.post('/cloud-name', requireAdminAuth, async (req, res) => {

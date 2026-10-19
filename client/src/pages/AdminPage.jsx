@@ -97,6 +97,29 @@ export const AdminPage = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '', order: 0 });
 
+  // Cloudinary Verification State
+  const [testingCloudinary, setTestingCloudinary] = useState(false);
+  const [cloudinaryTestResult, setCloudinaryTestResult] = useState(null);
+
+  const handleTestCloudinary = async () => {
+    setTestingCloudinary(true);
+    setCloudinaryTestResult(null);
+    try {
+      const res = await fetch(apiUrl('/api/cloudinary/verify'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setCloudinaryTestResult(data);
+    } catch (err) {
+      setCloudinaryTestResult({
+        success: false,
+        message: 'Could not connect to backend verification endpoint: ' + err.message,
+      });
+    } finally {
+      setTestingCloudinary(false);
+    }
+  };
+
   // Video Preview Modal
   const [previewModalProject, setPreviewModalProject] = useState(null);
 
@@ -1530,6 +1553,40 @@ export const AdminPage = () => {
                 <span className="font-mono font-bold text-white">
                   {cloudinaryConfig?.cloudName || 'Not Set Yet'}
                 </span>
+              </div>
+
+              <div className="pt-2 border-t border-white/5 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={testingCloudinary}
+                  onClick={handleTestCloudinary}
+                  className="w-full py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold border border-white/10 transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${testingCloudinary ? 'animate-spin' : ''}`} />
+                  {testingCloudinary ? 'Testing Credentials on Server...' : 'Test Live Cloudinary Connection'}
+                </button>
+
+                {cloudinaryTestResult && (
+                  <div
+                    className={`p-3 rounded-lg text-xs border ${
+                      cloudinaryTestResult.success
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-red-500/10 border-red-500/30 text-red-300'
+                    }`}
+                  >
+                    <p className="font-semibold flex items-center gap-1.5">
+                      {cloudinaryTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertCircle className="w-4 h-4 text-red-400" />}
+                      {cloudinaryTestResult.message}
+                    </p>
+                    {cloudinaryTestResult.details && (
+                      <div className="mt-1.5 font-mono text-[11px] space-y-0.5 opacity-90">
+                        <div>Cloud Name: {cloudinaryTestResult.details.cloudName || 'N/A'}</div>
+                        <div>API Key on server: {cloudinaryTestResult.details.apiKeyPreview || 'N/A'}</div>
+                        <div>API Secret on server: {cloudinaryTestResult.details.apiSecretPreview || 'N/A'} ({cloudinaryTestResult.details.apiSecretLength || 0} chars)</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

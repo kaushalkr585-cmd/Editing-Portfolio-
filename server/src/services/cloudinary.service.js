@@ -8,14 +8,16 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
-let currentCloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+const cleanEnv = (val) => (val ? String(val).trim().replace(/^["']|["']$/g, '') : '');
 
-const getApiKey = () => process.env.CLOUDINARY_API_KEY || '';
-const getApiSecret = () => process.env.CLOUDINARY_API_SECRET || '';
-const getCloudName = () => currentCloudName || process.env.CLOUDINARY_CLOUD_NAME || '';
+let currentCloudName = cleanEnv(process.env.CLOUDINARY_CLOUD_NAME);
+
+const getApiKey = () => cleanEnv(process.env.CLOUDINARY_API_KEY);
+const getApiSecret = () => cleanEnv(process.env.CLOUDINARY_API_SECRET);
+const getCloudName = () => cleanEnv(currentCloudName || process.env.CLOUDINARY_CLOUD_NAME);
 
 const initCloudinary = (name) => {
-  const cName = name || getCloudName();
+  const cName = cleanEnv(name || getCloudName());
   const aKey = getApiKey();
   const aSecret = getApiSecret();
   if (cName) currentCloudName = cName;
@@ -61,6 +63,61 @@ export const CloudinaryService = {
       isConfigured: missing.length === 0,
       missingConfig: missing,
     };
+  },
+
+  /**
+   * Verifies credentials against Cloudinary's live API ping
+   */
+  verifyCredentials: async () => {
+    const aKey = getApiKey();
+    const aSecret = getApiSecret();
+    const cName = getCloudName();
+
+    if (!cName || !aKey || !aSecret) {
+      return {
+        success: false,
+        message: 'Missing Cloudinary credentials. Please verify your environment variables.',
+        details: {
+          cloudName: cName || null,
+          apiKeyConfigured: Boolean(aKey),
+          apiSecretConfigured: Boolean(aSecret),
+        },
+      };
+    }
+
+    initCloudinary(cName);
+
+    try {
+      const pingResult = await new Promise((resolve, reject) => {
+        cloudinary.api.ping((err, res) => {
+          if (err) return reject(err);
+          resolve(res);
+        });
+      });
+
+      return {
+        success: true,
+        message: 'Cloudinary credentials verified successfully with Cloudinary servers!',
+        details: {
+          cloudName: cName,
+          apiKeyPreview: aKey.length > 6 ? `${aKey.slice(0, 3)}...${aKey.slice(-3)}` : '***',
+          apiSecretLength: aSecret.length,
+          apiSecretPreview: aSecret.length > 6 ? `${aSecret.slice(0, 3)}...${aSecret.slice(-3)}` : '***',
+          status: pingResult.status,
+        },
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.message || 'Cloudinary authentication failed.',
+        details: {
+          cloudName: cName,
+          apiKeyPreview: aKey.length > 6 ? `${aKey.slice(0, 3)}...${aKey.slice(-3)}` : '***',
+          apiSecretLength: aSecret.length,
+          apiSecretPreview: aSecret.length > 6 ? `${aSecret.slice(0, 3)}...${aSecret.slice(-3)}` : '***',
+        },
+      };
+    }
   },
 
   /**
