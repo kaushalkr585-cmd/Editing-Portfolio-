@@ -289,7 +289,10 @@ export const AdminPage = () => {
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({
+          identifier: loginForm.identifier.trim(),
+          password: loginForm.password,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {

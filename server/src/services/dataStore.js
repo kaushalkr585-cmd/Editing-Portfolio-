@@ -554,27 +554,42 @@ export const DataStore = {
       (await DataStore.findUserByEmailOrUsername(cleanUser));
 
     if (existing) {
-      // If existing user is placeholder seed 'kaushal@portfolio.com', update with real credentials
-      if (existing.email === 'kaushal@portfolio.com' && cleanEmail !== 'kaushal@portfolio.com') {
-        const salt = await bcrypt.genSalt(12);
-        const passwordHash = await bcrypt.hash(password, salt);
-        if (getDbStatus()) {
-          try {
-            const updated = await User.findByIdAndUpdate(
-              existing._id || existing.id,
-              { username: cleanUser, email: cleanEmail, password: passwordHash },
-              { new: true }
-            );
+      // If updating existing user or seed user, update password
+      const salt = await bcrypt.genSalt(12);
+      const passwordHash = await bcrypt.hash(password, salt);
+      if (getDbStatus()) {
+        try {
+          const updated = await User.findByIdAndUpdate(
+            existing._id || existing.id,
+            { username: cleanUser, email: cleanEmail, password: passwordHash },
+            { new: true }
+          );
+          if (updated) {
+            const memIdx = memoryUsers.findIndex(m => String(m._id) === String(updated._id) || String(m.id) === String(updated._id));
+            if (memIdx >= 0) {
+              memoryUsers[memIdx] = { ...memoryUsers[memIdx], username: cleanUser, email: cleanEmail, password: passwordHash };
+            }
+            savePersistentFile();
             return { id: updated._id, username: updated.username, email: updated.email, role: updated.role || role };
-          } catch (err) {
-            console.warn('[DataStore] MongoDB update placeholder error:', err.message);
           }
+        } catch (err) {
+          console.warn('[DataStore] MongoDB update user error:', err.message);
         }
-      } else {
-        const err = new Error('An account with this email or username already exists. Please log in.');
-        err.statusCode = 409;
-        throw err;
       }
+
+      // Memory fallback update
+      const memUser = memoryUsers.find(m => m.email?.toLowerCase() === cleanEmail || m.username?.toLowerCase() === cleanUser.toLowerCase());
+      if (memUser) {
+        memUser.username = cleanUser;
+        memUser.email = cleanEmail;
+        memUser.password = passwordHash;
+        savePersistentFile();
+        return { id: memUser._id || memUser.id, username: memUser.username, email: memUser.email, role: memUser.role || role };
+      }
+
+      const err = new Error('An account with this email or username already exists. Please log in.');
+      err.statusCode = 409;
+      throw err;
     }
 
     const salt = await bcrypt.genSalt(12);
@@ -588,6 +603,14 @@ export const DataStore = {
           password,
           role,
         });
+        memoryUsers.push({
+          _id: String(user._id),
+          username: user.username,
+          email: user.email,
+          password: user.password,
+          role: user.role,
+        });
+        savePersistentFile();
         return { id: user._id, username: user.username, email: user.email, role: user.role };
       } catch (err) {
         if (err.code === 11000) {
@@ -596,6 +619,7 @@ export const DataStore = {
           throw duplicateErr;
         }
         console.warn('[DataStore] MongoDB registerUser error:', err.message);
+        throw new Error(`Failed to save user in MongoDB: ${err.message}`);
       }
     }
 
@@ -618,22 +642,46 @@ export const DataStore = {
   },
 
   findUserByEmailOrUsername: async (identifier) => {
-    const ident = identifier.toLowerCase();
+    if (!identifier) return null;
+    const cleanIdent = identifier.trim();
+    const cleanLower = cleanIdent.toLowerCase();
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const caseInsensitiveQuery = new RegExp(`^${escapeRegex(cleanIdent)}$`, 'i');
+
     if (getDbStatus()) {
       try {
         const user = await User.findOne({
-          $or: [{ email: ident }, { username: ident }]
+          $or: [
+            { email: cleanLower },
+            { email: { $regex: caseInsensitiveQuery } },
+            { username: cleanIdent },
+            { username: { $regex: caseInsensitiveQuery } },
+          ],
         });
         if (user) return user;
       } catch (err) {
         console.warn('[DataStore] MongoDB findUser error:', err.message);
       }
     }
-    const u = memoryUsers.find(u => u.email.toLowerCase() === ident || u.username.toLowerCase() === ident);
+
+    const u = memoryUsers.find(
+      (m) =>
+        (m.email && m.email.toLowerCase() === cleanLower) ||
+        (m.username && m.username.toLowerCase() === cleanLower) ||
+        (m.email && m.email.trim().toLowerCase() === cleanLower) ||
+        (m.username && m.username.trim().toLowerCase() === cleanLower)
+    );
+
     if (u) {
       return {
         ...u,
-        comparePassword: async (pwd) => bcrypt.compare(pwd, u.password),
+        comparePassword: async (pwd) => {
+          if (!pwd || !u.password) return false;
+          if (u.password.startsWith('$2a$') || u.password.startsWith('$2b$')) {
+            return bcrypt.compare(pwd, u.password);
+          }
+          return pwd === u.password;
+        },
       };
     }
     return null;

@@ -4,7 +4,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { connectDB } from './config/db.js';
+import mongoose from 'mongoose';
+import { connectDB, getDbStatus } from './config/db.js';
 import { initializeDataStore } from './services/dataStore.js';
 
 // Route imports
@@ -62,6 +63,12 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
+    database: {
+      connected: getDbStatus(),
+      readyState: mongoose.connection?.readyState ?? 0,
+      host: mongoose.connection?.host || null,
+      name: mongoose.connection?.name || null,
+    },
   });
 });
 
