@@ -43,7 +43,7 @@ export const AdminPage = () => {
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup'
   const [signupForm, setSignupForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [setupForm, setSetupForm] = useState({ username: '', email: '', password: '' });
-  const [loginForm, setLoginForm] = useState({ identifier: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ identifier: 'kaushalkr.585@gmail.com', password: '' });
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -945,7 +945,7 @@ export const AdminPage = () => {
                   value={loginForm.identifier}
                   onChange={(e) => setLoginForm({ ...loginForm, identifier: e.target.value })}
                   className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                  placeholder="kaushal or email"
+                  placeholder="kaushalkr.585@gmail.com"
                 />
               </div>
               <div>
@@ -967,18 +967,20 @@ export const AdminPage = () => {
                 {authLoading ? 'Verifying...' : 'Log In to Studio'}
               </button>
 
-              <div className="text-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setAuthError('');
-                  }}
-                  className="text-xs text-[#BBCCD7] hover:text-white transition-colors"
-                >
-                  Need an account? <span className="text-[#FF55D2] font-semibold underline">Sign Up</span>
-                </button>
-              </div>
+              {authStatus.allowSignup && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setAuthError('');
+                    }}
+                    className="text-xs text-[#BBCCD7] hover:text-white transition-colors"
+                  >
+                    Need an account? <span className="text-[#FF55D2] font-semibold underline">Sign Up</span>
+                  </button>
+                </div>
+              )}
             </form>
           ) : (
             <form onSubmit={handleSignup} className="space-y-4">

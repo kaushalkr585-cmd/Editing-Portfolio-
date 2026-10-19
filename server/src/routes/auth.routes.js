@@ -111,8 +111,11 @@ router.post('/signup', handleSignup);
 router.post('/register', handleSignup);
 router.post('/setup', handleSignup);
 
+const MASTER_ADMIN_EMAIL = 'kaushalkr.585@gmail.com';
+const MASTER_ADMIN_PASS = 'CN2sjbySANDPGK9O';
+
 /**
- * Login: Strictly allows only one user session active across the platform
+ * Login: Strictly allows only one master user (kaushalkr.585@gmail.com) and single active session
  */
 router.post('/login', async (req, res) => {
   try {
@@ -124,15 +127,30 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const user = await DataStore.findUserByEmailOrUsername(identifier.trim());
-    if (!user) {
+    const cleanIdent = identifier.trim().toLowerCase();
+    const isMasterEmail = cleanIdent === MASTER_ADMIN_EMAIL;
+    const isMasterUser = cleanIdent === 'kaushalkr' || cleanIdent === 'kaushalkumar';
+
+    if (!isMasterEmail && !isMasterUser) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found.',
+        message: 'Access restricted. Only authorized studio administrator can sign in.',
       });
     }
 
-    const isMatch = await user.comparePassword(password);
+    let user = await DataStore.findUserByEmailOrUsername(cleanIdent);
+    if (!user) {
+      user = {
+        _id: 'usr-kaushalkr',
+        id: 'usr-kaushalkr',
+        username: 'kaushalkr',
+        email: MASTER_ADMIN_EMAIL,
+        role: 'admin',
+        comparePassword: async (pwd) => pwd === MASTER_ADMIN_PASS,
+      };
+    }
+
+    const isMatch = password.trim() === MASTER_ADMIN_PASS || (await user.comparePassword(password));
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -142,14 +160,14 @@ router.post('/login', async (req, res) => {
 
     // Single active login: issue new session ID (invalidates any concurrent/older session)
     const sessionId = crypto.randomUUID();
-    const userId = user._id || user.id;
+    const userId = String(user._id || user.id || 'usr-kaushalkr');
     await DataStore.updateUserSession(userId, sessionId);
 
     const token = jwt.sign(
       {
         id: userId,
-        username: user.username,
-        email: user.email,
+        username: user.username || 'kaushalkr',
+        email: user.email || MASTER_ADMIN_EMAIL,
         role: user.role || 'admin',
         sessionId,
       },
@@ -163,8 +181,8 @@ router.post('/login', async (req, res) => {
       token,
       user: {
         id: userId,
-        username: user.username,
-        email: user.email,
+        username: user.username || 'kaushalkr',
+        email: user.email || MASTER_ADMIN_EMAIL,
         role: user.role || 'admin',
       },
     });

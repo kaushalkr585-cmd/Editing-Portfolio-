@@ -481,12 +481,12 @@
   },
   "users": [
     {
-      "_id": "usr-1792422417392",
-      "username": "kaushalkumar",
-      "email": "kaushal@portfolio.com",
-      "password": "$2a$12$XnOqNPE1ZJ2H0FItjwFcTuPtiZBTYuhU3Nj1fB8ok9.juxmPzSJ3W",
+      "_id": "usr-kaushalkr",
+      "username": "kaushalkr",
+      "email": "kaushalkr.585@gmail.com",
+      "password": "$2a$12$gHqPl2tZwgHYxEvA.wsquuhOp2hn5d/CaFAMwaJ/yMblG.Vtq1ExK",
       "role": "admin"
     }
   ],
-  "savedAt": "2026-10-19T15:41:45.206Z"
+  "savedAt": "2026-10-20T01:59:00.000Z"
 }
