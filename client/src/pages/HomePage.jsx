@@ -27,7 +27,7 @@ export const HomePage = () => {
       <PortfolioGallery onSelectProjectForInquiry={handleInquiryTransfer} />
       <AboutMe />
       <FAQ />
-      <Contact prefillData={contactPrefill} />
+      <Contact />
       <Footer />
     </div>
   );
