@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, ArrowUp, Youtube, Instagram, Twitter, Linkedin, Heart } from 'lucide-react';
+import { Film, ArrowUp, Instagram, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Footer = () => {
@@ -30,11 +30,31 @@ export const Footer = () => {
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-[#F5F5F5]">
             <a href="#home" className="hover:text-[#B600A8] transition-colors">Home</a>
             <a href="#work" className="hover:text-[#B600A8] transition-colors">Work</a>
-            <a href="#services" className="hover:text-[#B600A8] transition-colors">Services</a>
             <a href="#about" className="hover:text-[#B600A8] transition-colors">About</a>
-            <a href="#ai-assistant" className="hover:text-[#B600A8] transition-colors">AI Director</a>
             <a href="#contact" className="hover:text-[#B600A8] transition-colors">Contact</a>
             <Link to="/admin" className="hover:text-white transition-colors text-xs text-[#6E6E6E]">Admin Portal</Link>
+          </div>
+
+          {/* Social / Direct Channels */}
+          <div className="flex items-center gap-4">
+            <a
+              href="https://www.instagram.com/mystry.editz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram @mystry.editz"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white text-xs border border-white/5 transition-colors"
+            >
+              <Instagram className="w-3.5 h-3.5 text-[#B600A8]" />
+              <span>@mystry.editz</span>
+            </a>
+            <a
+              href="mailto:kaushalkr.585@gmail.com"
+              aria-label="Email kaushalkr.585@gmail.com"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white text-xs border border-white/5 transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5 text-[#7621B0]" />
+              <span>kaushalkr.585@gmail.com</span>
+            </a>
           </div>
 
           {/* Back to top */}

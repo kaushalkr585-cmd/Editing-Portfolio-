@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus, ArrowUpRight } from 'lucide-react';
+import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus, ArrowUpRight, Instagram, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
 import { ProjectModal } from './ProjectModal';
@@ -363,6 +363,37 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
             </button>
           </div>
         )}
+
+        {/* Contact Call to Action */}
+        <FadeIn delay={0.2}>
+          <div className="mt-16 p-8 sm:p-12 rounded-3xl bg-gradient-to-r from-[#18011F] via-[#141414] to-[#18011F] border border-white/10 text-center relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-1/4 w-72 h-36 bg-[#B600A8]/10 blur-[80px] pointer-events-none rounded-full" />
+            <h3 className="text-2xl sm:text-4xl font-bold text-white uppercase tracking-tight mb-3">
+              Have a project in mind? Let's create something cinematic.
+            </h3>
+            <p className="text-[#A6A6A6] text-sm sm:text-base max-w-xl mx-auto mb-8 font-light">
+              Ready to elevate your content with high-retention pacing, DaVinci color grading, and dynamic storytelling? Let's connect directly.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <a
+                href="https://www.instagram.com/mystry.editz/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-[#B600A8] to-[#7621B0] hover:opacity-95 text-white font-semibold text-sm transition-all shadow-lg hover:scale-105 active:scale-95"
+              >
+                <Instagram className="w-4 h-4" />
+                Contact Me on Instagram
+              </a>
+              <a
+                href="mailto:kaushalkr.585@gmail.com"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
+              >
+                <Mail className="w-4 h-4 text-[#BBCCD7]" />
+                Email Me
+              </a>
+            </div>
+          </div>
+        </FadeIn>
 
         {/* Detail Modal */}
         {selectedProject && (

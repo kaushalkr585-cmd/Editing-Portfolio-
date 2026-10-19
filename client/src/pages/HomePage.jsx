@@ -3,12 +3,7 @@ import Navbar from '../components/common/Navbar';
 import Hero from '../components/sections/Hero';
 import FeaturedShowreel from '../components/sections/FeaturedShowreel';
 import PortfolioGallery from '../components/sections/PortfolioGallery';
-import Services from '../components/sections/Services';
 import AboutMe from '../components/sections/AboutMe';
-import EditingProcess from '../components/sections/EditingProcess';
-import AIAssistant from '../components/sections/AIAssistant';
-import Pricing from '../components/sections/Pricing';
-import Testimonials from '../components/sections/Testimonials';
 import FAQ from '../components/sections/FAQ';
 import Contact from '../components/sections/Contact';
 import Footer from '../components/common/Footer';
@@ -30,17 +25,7 @@ export const HomePage = () => {
       <Hero />
       <FeaturedShowreel />
       <PortfolioGallery onSelectProjectForInquiry={handleInquiryTransfer} />
-      <Services onSelectServiceForInquiry={handleInquiryTransfer} />
       <AboutMe />
-      <EditingProcess />
-      <AIAssistant
-        onTransferBriefToContact={handleInquiryTransfer}
-        onSelectProject={(proj) => {
-          // Open details or scroll
-        }}
-      />
-      <Pricing onSelectPackageForInquiry={handleInquiryTransfer} />
-      <Testimonials />
       <FAQ />
       <Contact prefillData={contactPrefill} />
       <Footer />

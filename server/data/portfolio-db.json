@@ -375,6 +375,20 @@
       "referenceLinks": "",
       "aiBrief": null,
       "status": "new",
+      "_id": "inq-1792424138254",
+      "createdAt": "2026-10-19T15:35:38.254Z",
+      "updatedAt": "2026-10-19T15:35:38.254Z"
+    },
+    {
+      "name": "Integration Tester",
+      "email": "tester@brand.com",
+      "projectType": "Commercials",
+      "budget": "Flexible",
+      "deadline": "Flexible",
+      "description": "Need a 30s broadcast commercial with high energy and DaVinci color grading.",
+      "referenceLinks": "",
+      "aiBrief": null,
+      "status": "new",
       "_id": "inq-1792422657986",
       "createdAt": "2026-10-19T15:10:57.986Z",
       "updatedAt": "2026-10-19T15:10:57.986Z"
@@ -460,5 +474,5 @@
       "role": "admin"
     }
   ],
-  "savedAt": "2026-10-19T15:10:58.352Z"
+  "savedAt": "2026-10-19T15:35:38.871Z"
 }
