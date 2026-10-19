@@ -105,6 +105,21 @@ export const initializeDataStore = async () => {
         console.log('[DataStore] Seeding services into MongoDB...');
         await Service.insertMany(seedServices.map(s => ({ ...s, _id: undefined })));
       }
+      // Sync admin users to MongoDB Atlas if empty
+      const userCount = await User.countDocuments();
+      if (userCount === 0 && memoryUsers.length > 0) {
+        console.log('[DataStore] Syncing existing admin user(s) into MongoDB Atlas...');
+        for (const u of memoryUsers) {
+          await User.collection.insertOne({
+            username: u.username,
+            email: u.email,
+            password: u.password,
+            role: u.role || 'admin',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+      }
     } catch (err) {
       console.warn('[DataStore] MongoDB seeding error:', err.message);
     }

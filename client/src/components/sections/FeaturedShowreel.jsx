@@ -10,6 +10,23 @@ export const FeaturedShowreel = ({
 }) => {
   const [activeVideoUrl, setActiveVideoUrl] = useState(videoUrl);
   const [activePosterUrl, setActivePosterUrl] = useState(posterUrl);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin session on mount
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.user) {
+          setIsAdmin(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -133,6 +150,12 @@ export const FeaturedShowreel = ({
       if (isPlaying) setShowControls(false);
     }, 2800);
   };
+
+  // If no video is uploaded/configured and the visitor is NOT logged in as admin:
+  // Viewers CANNOT see this section!
+  if (!activeVideoUrl && !isAdmin) {
+    return null;
+  }
 
   return (
     <section id="showreel" className="py-20 relative bg-[#0C0C0C]">
@@ -276,8 +299,12 @@ export const FeaturedShowreel = ({
               </div>
             </div>
           ) : (
-            /* Clean Professional Empty State when no showreel video is configured */
+            /* Clean Professional Empty State when no showreel video is configured (Admin Only) */
             <div className="relative aspect-video w-full rounded-3xl overflow-hidden bg-gradient-to-b from-[#141414] to-[#0E0E0E] border border-white/[0.08] shadow-2xl flex flex-col items-center justify-center p-8 text-center">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full mb-3 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Admin Setup Mode • Hidden from Public Viewers
+              </span>
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#18011F] to-[#7621B0]/30 border border-[#7621B0]/40 flex items-center justify-center text-[#B600A8] mb-4">
                 <Film className="w-8 h-8" />
               </div>

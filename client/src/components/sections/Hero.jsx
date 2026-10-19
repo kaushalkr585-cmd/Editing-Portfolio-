@@ -1,9 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, ArrowDown, Sparkles, CheckCircle2 } from 'lucide-react';
 import { FadeIn } from '../common/FadeIn';
 
 export const Hero = () => {
+  const [showShowreelButton, setShowShowreelButton] = useState(false);
+
+  useEffect(() => {
+    // If admin is logged in, show button
+    if (localStorage.getItem('admin_token')) {
+      setShowShowreelButton(true);
+      return;
+    }
+    // Check if showreel is configured
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.showreelUrl) {
+          setShowShowreelButton(true);
+        } else {
+          fetch('/api/projects?featured=true')
+            .then((r) => r.json())
+            .then((p) => {
+              if (p.success && p.data && p.data.length > 0) {
+                setShowShowreelButton(true);
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const handleScrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -58,15 +86,17 @@ export const Hero = () => {
               Let's Work Together
             </button>
 
-            <button
-              onClick={() => handleScrollTo('showreel')}
-              className="px-6 py-3.5 rounded-full bg-[#141414] hover:bg-[#1A1A1A] text-[#F5F5F5] border border-white/10 font-medium text-sm sm:text-base transition-all duration-200 flex items-center gap-2 group"
-            >
-              <div className="w-6 h-6 rounded-full bg-[#B600A8]/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Play className="w-3 h-3 text-[#B600A8] fill-[#B600A8]" />
-              </div>
-              Watch Showreel
-            </button>
+            {showShowreelButton && (
+              <button
+                onClick={() => handleScrollTo('showreel')}
+                className="px-6 py-3.5 rounded-full bg-[#141414] hover:bg-[#1A1A1A] text-[#F5F5F5] border border-white/10 font-medium text-sm sm:text-base transition-all duration-200 flex items-center gap-2 group"
+              >
+                <div className="w-6 h-6 rounded-full bg-[#B600A8]/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Play className="w-3 h-3 text-[#B600A8] fill-[#B600A8]" />
+                </div>
+                Watch Showreel
+              </button>
+            )}
           </div>
         </FadeIn>
 
