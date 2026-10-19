@@ -485,8 +485,9 @@
       "username": "kaushalkr",
       "email": "kaushalkr.585@gmail.com",
       "password": "$2a$12$gHqPl2tZwgHYxEvA.wsquuhOp2hn5d/CaFAMwaJ/yMblG.Vtq1ExK",
-      "role": "admin"
+      "role": "admin",
+      "activeSessionId": "e9920b61-38a7-4fae-ae64-a09c6a911873"
     }
   ],
-  "savedAt": "2026-10-20T01:59:00.000Z"
+  "savedAt": "2026-10-19T20:32:37.623Z"
 }

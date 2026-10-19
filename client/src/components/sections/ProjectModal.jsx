@@ -17,15 +17,18 @@ import {
   Sparkles,
   Film
 } from 'lucide-react';
-import { getOptimizedVideoUrl } from '../../utils/videoUtils';
+import { getDeviceOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../../utils/videoUtils';
 
 export const ProjectModal = ({ project, onClose, onInquire }) => {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const progressTrackRef = useRef(null);
+  const controlsTimeoutRef = useRef(null);
+  const waitingTimerRef = useRef(null);
 
   // Sound & Playback State - UNMUTED BY DEFAULT for intentional user click
   const [isPlaying, setIsPlaying] = useState(true);
+  const [hasStarted, setHasStarted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(() => {
     const saved = localStorage.getItem('portfolio_video_volume');
@@ -39,9 +42,34 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const controlsTimeoutRef = useRef(null);
 
-  if (!project) return null;
+  // Clean resource release helper
+  const releaseVideoResources = useCallback(() => {
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    const video = videoRef.current;
+    if (video) {
+      try {
+        video.pause();
+        video.removeAttribute('src'); // Stop ongoing buffer stream immediately
+        video.load(); // Flush decoder buffer and hardware acceleration state
+      } catch (err) {
+        // Safe catch for detached DOM nodes
+      }
+    }
+  }, []);
+
+  const handleClose = useCallback(() => {
+    releaseVideoResources();
+    onClose();
+  }, [releaseVideoResources, onClose]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      releaseVideoResources();
+    };
+  }, [releaseVideoResources]);
 
   // Sync volume to video element and persist
   const handleVolumeChange = (newVol) => {
@@ -85,7 +113,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      // Ensure sound is active on intentional play click
+      setHasStarted(true);
       if (autoplayBlocked) {
         videoRef.current.muted = false;
         setIsMuted(false);
@@ -93,9 +121,13 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
       }
       videoRef.current
         .play()
-        .then(() => setIsPlaying(true))
+        .then(() => {
+          setIsPlaying(true);
+          setIsLoading(false);
+        })
         .catch((err) => {
           console.warn('[ProjectModal] Playback error:', err);
+          setIsLoading(false);
         });
     }
   };
@@ -114,13 +146,14 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
       playPromise
         .then(() => {
           setIsPlaying(true);
+          setHasStarted(true);
           setIsLoading(false);
           setAutoplayBlocked(false);
         })
         .catch((err) => {
           // If browser strictly blocks unmuted autoplay without second interaction
           if (err.name === 'NotAllowedError') {
-            console.info('[ProjectModal] Unmuted autoplay prevented by browser policy; starting muted with unmute banner.');
+            console.info('[ProjectModal] Browser policy blocked unmuted autoplay; starting muted with unmute banner.');
             video.muted = true;
             setIsMuted(true);
             setAutoplayBlocked(true);
@@ -128,6 +161,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
               .play()
               .then(() => {
                 setIsPlaying(true);
+                setHasStarted(true);
                 setIsLoading(false);
               })
               .catch(() => setIsLoading(false));
@@ -141,7 +175,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
     // Keyboard controls
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleClose();
       } else if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         togglePlay();
@@ -154,7 +188,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleClose]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -162,21 +196,23 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
       const dur = videoRef.current.duration || 1;
       setCurrentTime(cur);
       setProgress((cur / dur) * 100);
+      if (!hasStarted && cur > 0) {
+        setHasStarted(true);
+      }
     }
   };
-
-  const waitingTimerRef = useRef(null);
 
   const handleWaiting = () => {
     if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
     waitingTimerRef.current = setTimeout(() => {
       setIsLoading(true);
-    }, 400);
+    }, 250);
   };
 
   const handlePlaying = () => {
     if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
     setIsLoading(false);
+    setHasStarted(true);
   };
 
   const handleCanPlay = () => {
@@ -250,10 +286,15 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
     }
   };
 
+  if (!project) return null;
+
+  const optimizedVideoSrc = getDeviceOptimizedVideoUrl(project.videoUrl, false);
+  const optimizedPoster = getOptimizedThumbnailUrl(project.thumbnailUrl, { width: 1200, quality: 'q_auto' });
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         ref={containerRef}
@@ -263,7 +304,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
       >
         {/* Top Right Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-black/75 hover:bg-black text-white transition-all border border-white/10 shadow-lg hover:scale-105"
           aria-label="Close modal"
         >
@@ -279,11 +320,20 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
         >
           {/* Aspect-constrained video wrapper */}
           <div className={`${getAspectClass(project.aspectRatio)} relative flex items-center justify-center`}>
+            {/* Poster fallback image prior to first frame playback */}
+            {!hasStarted && optimizedPoster && (
+              <img
+                src={optimizedPoster}
+                alt={project.title}
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
+              />
+            )}
+
             <video
               ref={videoRef}
-              src={getOptimizedVideoUrl(project.videoUrl)}
-              poster={project.thumbnailUrl}
-              preload="auto"
+              src={optimizedVideoSrc}
+              poster={optimizedPoster}
+              preload="metadata"
               playsInline
               loop
               onTimeUpdate={handleTimeUpdate}
@@ -291,6 +341,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
               onWaiting={handleWaiting}
               onPlaying={handlePlaying}
               onCanPlay={handleCanPlay}
+              onStalled={handleWaiting}
               onError={() => {
                 if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
                 setIsLoading(false);
@@ -340,11 +391,15 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
                 onClick={(e) => {
                   e.stopPropagation();
                   setHasError(false);
-                  if (videoRef.current) videoRef.current.load();
+                  setIsLoading(true);
+                  if (videoRef.current) {
+                    videoRef.current.load();
+                    videoRef.current.play().catch(() => {});
+                  }
                 }}
                 className="mt-4 px-4 py-1.5 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-1.5"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Retry
+                <RotateCcw className="w-3.5 h-3.5" /> Retry Playback
               </button>
             </div>
           )}
@@ -464,7 +519,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
 
             <button
               onClick={() => {
-                onClose();
+                handleClose();
                 onInquire(project);
               }}
               className="btn-contact-gradient px-6 py-2.5 rounded-full text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-lg hover:scale-105 transition-transform"

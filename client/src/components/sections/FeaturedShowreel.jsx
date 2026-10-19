@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, RotateCcw, AlertCircle, Loader2, Film, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
-import { getOptimizedVideoUrl } from '../../utils/videoUtils';
+import { getDeviceOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../../utils/videoUtils';
 import { apiUrl } from '../../utils/api';
 
 export const FeaturedShowreel = ({
@@ -74,6 +74,42 @@ export const FeaturedShowreel = ({
       setActivePosterUrl(posterUrl);
     }
   }, [videoUrl, posterUrl]);
+
+  // Viewport IntersectionObserver: auto-pause when scrolled out of view to save mobile bandwidth
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && isPlaying && videoRef.current) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isPlaying]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+  }, []);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -227,7 +263,7 @@ export const FeaturedShowreel = ({
             >
               {!hasStarted && activePosterUrl && (
                 <img
-                  src={activePosterUrl}
+                  src={getOptimizedThumbnailUrl(activePosterUrl, { width: 1200 })}
                   alt={title}
                   className="absolute inset-0 w-full h-full object-cover z-10 transition-transform duration-700 group-hover:scale-105"
                   loading="lazy"
@@ -242,8 +278,8 @@ export const FeaturedShowreel = ({
 
               <video
                 ref={videoRef}
-                src={getOptimizedVideoUrl(activeVideoUrl)}
-                poster={activePosterUrl}
+                src={getDeviceOptimizedVideoUrl(activeVideoUrl)}
+                poster={getOptimizedThumbnailUrl(activePosterUrl, { width: 1200 })}
                 preload="metadata"
                 muted={isMuted}
                 playsInline

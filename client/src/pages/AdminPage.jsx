@@ -33,6 +33,7 @@ import {
 import { Link } from 'react-router-dom';
 import { VideoCoverPicker } from '../components/common/VideoCoverPicker';
 import { apiUrl } from '../utils/api';
+import { getOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../utils/videoUtils';
 
 export const AdminPage = () => {
   const [authStatus, setAuthStatus] = useState({ loading: true, initialized: true });
@@ -591,8 +592,8 @@ export const AdminPage = () => {
 
       // 3. Construct optimized Cloudinary video and poster URLs
       const publicId = cloudinaryResult.public_id;
-      const videoDeliveryUrl = `https://res.cloudinary.com/${cloudName}/video/upload/q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`;
-      let finalThumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,q_auto,f_auto,w_1200/${publicId}.jpg`;
+      const videoDeliveryUrl = `https://res.cloudinary.com/${cloudName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`;
+      let finalThumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,f_auto,q_auto,w_1200/${publicId}.jpg`;
       let finalThumbnailPublicId = '';
 
       // Upload selected cover frame / custom image to Cloudinary if chosen
@@ -2343,10 +2344,12 @@ export const AdminPage = () => {
               <X className="w-4 h-4" />
             </button>
             <video
-              src={previewModalProject.videoUrl}
-              poster={previewModalProject.thumbnailUrl}
+              src={getOptimizedVideoUrl(previewModalProject.videoUrl)}
+              poster={getOptimizedThumbnailUrl(previewModalProject.thumbnailUrl, { width: 1200 })}
               controls
               autoPlay
+              playsInline
+              preload="metadata"
               className="w-full aspect-video object-contain bg-black"
             />
             <div className="p-5 bg-[#141414] flex items-center justify-between">

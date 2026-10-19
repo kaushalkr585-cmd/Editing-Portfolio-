@@ -1,10 +1,184 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, Play, Clock, Eye, AlertCircle, Film, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
 import { ProjectModal } from './ProjectModal';
-import { getOptimizedVideoUrl } from '../../utils/videoUtils';
+import { getOptimizedVideoUrl, getOptimizedThumbnailUrl, isTouchDevice } from '../../utils/videoUtils';
 import { apiUrl } from '../../utils/api';
+
+/**
+ * High-Performance Portfolio Video Card
+ * - Displays optimized Cloudinary thumbnail first with lazy loading (Zero upfront video download)
+ * - On touch/mobile devices: keeps video unmounted to save 100% of mobile gallery bandwidth
+ * - On desktop: loads a lightweight 720p muted preview only on intentional hover (debounced 150ms)
+ * - Automatically pauses and releases decoder resources when scrolled out of the viewport
+ */
+const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onHoverEnd, onClick }) => {
+  const cardRef = useRef(null);
+  const videoRef = useRef(null);
+  const [isInView, setIsInView] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    setIsTouch(isTouchDevice());
+  }, []);
+
+  // IntersectionObserver to track viewport visibility
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+        if (!entry.isIntersecting && isHovered) {
+          onHoverEnd();
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isHovered, onHoverEnd]);
+
+  // Video playback lifecycle management
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isHovered && isInView && !isTouch) {
+      video.currentTime = 0;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsVideoReady(true))
+          .catch(() => setIsVideoReady(false));
+      }
+    } else {
+      video.pause();
+      setIsVideoReady(false);
+    }
+  }, [isHovered, isInView, isTouch]);
+
+  // Optimized URLs for mobile & desktop
+  const optimizedThumbnail = getOptimizedThumbnailUrl(project.thumbnailUrl, { width: 600, quality: 'q_auto' });
+  const optimizedVideoPreview = getOptimizedVideoUrl(project.videoUrl, { maxWidth: 720, quality: 'q_auto:eco' });
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      onClick={onClick}
+      className="group relative bg-[#141414] border border-white/[0.08] hover:border-[#B600A8]/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-[#B600A8]/10 cursor-pointer flex flex-col"
+    >
+      {/* Media Container with explicit aspect ratio */}
+      <div className={`relative w-full ${aspectRatioClass} bg-black overflow-hidden`}>
+        {/* Saved Cloudinary Thumbnail - Always displayed first */}
+        {project.thumbnailUrl ? (
+          <img
+            src={optimizedThumbnail}
+            alt={project.title}
+            loading="lazy"
+            decoding="async"
+            className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+              isHovered && isVideoReady ? 'opacity-0' : 'opacity-100'
+            }`}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-[#1A1A1A] flex items-center justify-center text-[#6E6E6E]">
+            <Film className="w-10 h-10" />
+          </div>
+        )}
+
+        {/* Lightweight Hover Preview Video - Mounted ONLY on desktop hover while in viewport */}
+        {!isTouch && isHovered && isInView && project.videoUrl && (
+          <video
+            ref={videoRef}
+            src={optimizedVideoPreview}
+            preload="metadata"
+            muted
+            loop
+            playsInline
+            onPlaying={() => setIsVideoReady(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+              isVideoReady ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+        )}
+
+        {/* Top Badges */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
+          <span className="text-[10px] font-semibold uppercase tracking-wider bg-black/75 backdrop-blur-md text-[#BBCCD7] px-2.5 py-1 rounded-full border border-white/10">
+            {project.category}
+          </span>
+
+          {project.aspectRatio && (
+            <span className="text-[10px] font-mono font-medium bg-black/75 backdrop-blur-md text-[#A6A6A6] px-2 py-0.5 rounded border border-white/10">
+              {project.aspectRatio}
+            </span>
+          )}
+        </div>
+
+        {/* Center Play Button Overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 gap-2">
+          <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+            <Play className="w-5 h-5 fill-black ml-0.5" />
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white bg-black/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 shadow-md">
+            Watch Master Edit
+          </span>
+        </div>
+
+        {/* Bottom Duration Badge */}
+        {project.duration && (
+          <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none">
+            <span className="text-[10px] font-mono bg-black/80 backdrop-blur-md text-white/90 px-2 py-0.5 rounded flex items-center gap-1">
+              <Clock className="w-3 h-3 text-[#B600A8]" />
+              {project.duration}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Content Details */}
+      <div className="p-5 flex-1 flex flex-col justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white group-hover:text-[#BBCCD7] transition-colors line-clamp-1">
+            {project.title}
+          </h3>
+          {project.description && (
+            <p className="text-xs text-[#A6A6A6] mt-2 line-clamp-2 leading-relaxed">
+              {project.description}
+            </p>
+          )}
+        </div>
+
+        {/* Tags & Action */}
+        <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            {Array.isArray(project.tags) && project.tags.slice(0, 2).map((tag, tIdx) => (
+              <span
+                key={tIdx}
+                className="text-[10px] text-[#8E8E8E] bg-white/[0.04] px-2 py-0.5 rounded"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+          <span className="text-xs text-[#B600A8] font-medium flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+            Details <Eye className="w-3.5 h-3.5" />
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
   const [projects, setProjects] = useState([]);
@@ -15,7 +189,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
   const [loading, setLoading] = useState(true);
   const [activeHoverId, setActiveHoverId] = useState(null);
   const [visibleCount, setVisibleCount] = useState(9);
-  const videoRefs = useRef({});
+  const hoverDebounceRef = useRef(null);
 
   // Fetch categories from backend API
   const fetchCategories = async () => {
@@ -69,25 +243,18 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
 
   const displayedProjects = filteredProjects.slice(0, visibleCount);
 
-  // Single-video hover preview on desktop
-  const handleMouseEnter = (id) => {
-    setActiveHoverId(id);
-    const video = videoRefs.current[id];
-    if (video) {
-      video.currentTime = 0;
-      video.play().catch(() => {});
-    }
-  };
+  // Single-video hover preview on desktop with 150ms debounce
+  const handleHoverStart = useCallback((id) => {
+    if (hoverDebounceRef.current) clearTimeout(hoverDebounceRef.current);
+    hoverDebounceRef.current = setTimeout(() => {
+      setActiveHoverId(id);
+    }, 150);
+  }, []);
 
-  const handleMouseLeave = (id) => {
-    if (activeHoverId === id) {
-      setActiveHoverId(null);
-    }
-    const video = videoRefs.current[id];
-    if (video) {
-      video.pause();
-    }
-  };
+  const handleHoverEnd = useCallback((id) => {
+    if (hoverDebounceRef.current) clearTimeout(hoverDebounceRef.current);
+    setActiveHoverId((current) => (current === id ? null : current));
+  }, []);
 
   const getCardAspectClass = (aspectRatio) => {
     switch (aspectRatio) {
@@ -119,7 +286,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
                 Portfolio Gallery
               </h2>
               <p className="text-[#A6A6A6] text-sm sm:text-base mt-2 max-w-xl">
-                Explore editing work across tailored creative genres. Hover over any video for dynamic preview or tap to view comprehensive master details.
+                Explore editing work across tailored creative genres. Tap any project to watch master edits with unmuted audio and high-definition details.
               </p>
             </FadeIn>
           </div>
@@ -184,22 +351,18 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
             ))}
           </div>
         ) : projects.length === 0 ? (
-          /* Clean Professional Empty State when no videos have been uploaded */
           <FadeIn>
             <div className="text-center py-20 sm:py-28 bg-[#141414]/60 rounded-3xl border border-white/[0.08] p-8 max-w-3xl mx-auto shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#B600A8]/10 to-transparent blur-3xl pointer-events-none" />
-              
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#18011F] to-[#7621B0]/30 border border-[#7621B0]/40 flex items-center justify-center mx-auto mb-5 text-[#B600A8]">
                 <Film className="w-8 h-8" />
               </div>
-              
               <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                 No projects uploaded yet.
               </h3>
               <p className="text-sm sm:text-base text-[#A6A6A6] mt-3 max-w-md mx-auto leading-relaxed">
                 Portfolio projects are currently being curated. Check back soon for new video releases, or access the studio dashboard to publish your cuts.
               </p>
-
               <div className="mt-8 flex justify-center">
                 <Link
                   to="/admin"
@@ -212,7 +375,6 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
             </div>
           </FadeIn>
         ) : displayedProjects.length === 0 ? (
-          /* Empty state for filtered category/search */
           <div className="text-center py-20 bg-[#141414]/50 rounded-2xl border border-white/5 p-8 max-w-lg mx-auto">
             <AlertCircle className="w-12 h-12 text-[#6E6E6E] mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white">
@@ -232,117 +394,20 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
             </button>
           </div>
         ) : (
-          /* Grid of Real Projects */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 items-start">
             {displayedProjects.map((project, idx) => {
-              const isHovered = activeHoverId === project.id || activeHoverId === project._id;
               const projectId = project._id || project.id;
+              const isHovered = activeHoverId === projectId;
               return (
                 <FadeIn key={projectId || idx} delay={idx * 0.05}>
-                  <div
-                    onMouseEnter={() => handleMouseEnter(projectId)}
-                    onMouseLeave={() => handleMouseLeave(projectId)}
+                  <PortfolioCard
+                    project={project}
+                    aspectRatioClass={getCardAspectClass(project.aspectRatio)}
+                    isHovered={isHovered}
+                    onHoverStart={() => handleHoverStart(projectId)}
+                    onHoverEnd={() => handleHoverEnd(projectId)}
                     onClick={() => setSelectedProject(project)}
-                    className="group relative bg-[#141414] border border-white/[0.08] hover:border-[#B600A8]/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-[#B600A8]/10 cursor-pointer flex flex-col"
-                  >
-                    {/* Media Container with explicit aspect ratio */}
-                    <div className={`relative w-full ${getCardAspectClass(project.aspectRatio)} bg-black overflow-hidden`}>
-                      {/* Thumbnail Poster */}
-                      {project.thumbnailUrl ? (
-                        <img
-                          src={project.thumbnailUrl}
-                          alt={project.title}
-                          loading="lazy"
-                          className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-                            isHovered ? 'opacity-0' : 'opacity-100'
-                          }`}
-                        />
-                      ) : (
-                        <div className="absolute inset-0 bg-[#1A1A1A] flex items-center justify-center text-[#6E6E6E]">
-                          <Film className="w-10 h-10" />
-                        </div>
-                      )}
-
-                      {/* Video Preview Loop on Desktop Hover */}
-                      {project.videoUrl && (
-                        <video
-                          ref={(el) => (videoRefs.current[projectId] = el)}
-                          src={getOptimizedVideoUrl(project.videoUrl, { maxWidth: 720, quality: 'q_auto:eco' })}
-                          preload="none"
-                          muted
-                          loop
-                          playsInline
-                          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-                            isHovered ? 'opacity-100' : 'opacity-0'
-                          }`}
-                        />
-                      )}
-
-                      {/* Top Badges */}
-                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider bg-black/75 backdrop-blur-md text-[#BBCCD7] px-2.5 py-1 rounded-full border border-white/10">
-                          {project.category}
-                        </span>
-
-                        {project.aspectRatio && (
-                          <span className="text-[10px] font-mono font-medium bg-black/75 backdrop-blur-md text-[#A6A6A6] px-2 py-0.5 rounded border border-white/10">
-                            {project.aspectRatio}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Center Play Button Overlay */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 gap-2">
-                        <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Play className="w-5 h-5 fill-black ml-0.5" />
-                        </div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-white bg-black/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 shadow-md">
-                          Play with Audio
-                        </span>
-                      </div>
-
-                      {/* Bottom Duration Badge */}
-                      {project.duration && (
-                        <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none">
-                          <span className="text-[10px] font-mono bg-black/80 backdrop-blur-md text-white/90 px-2 py-0.5 rounded flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-[#B600A8]" />
-                            {project.duration}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="p-5 flex-1 flex flex-col justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold text-white group-hover:text-[#BBCCD7] transition-colors line-clamp-1">
-                          {project.title}
-                        </h3>
-                        {project.description && (
-                          <p className="text-xs text-[#A6A6A6] mt-2 line-clamp-2 leading-relaxed">
-                            {project.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Tags & Action */}
-                      <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          {Array.isArray(project.tags) && project.tags.slice(0, 2).map((tag, tIdx) => (
-                            <span
-                              key={tIdx}
-                              className="text-[10px] text-[#8E8E8E] bg-white/[0.04] px-2 py-0.5 rounded"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                        <span className="text-xs text-[#B600A8] font-medium flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                          Details <Eye className="w-3.5 h-3.5" />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  />
                 </FadeIn>
               );
             })}
@@ -361,7 +426,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
           </div>
         )}
 
-        {/* Detail Modal */}
+        {/* Detail Modal with Resource-Clean Video Player */}
         {selectedProject && (
           <ProjectModal
             project={selectedProject}
