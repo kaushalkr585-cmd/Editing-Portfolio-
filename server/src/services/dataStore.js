@@ -154,6 +154,21 @@ export const initializeDataStore = async () => {
       console.warn('[DataStore] MongoDB seeding error:', err.message);
     }
   }
+
+  // Auto-discover and restore videos from Cloudinary if projects list is empty
+  let projectCount = memoryProjects.length;
+  if (getDbStatus()) {
+    try {
+      projectCount = await Project.countDocuments();
+    } catch (e) {
+      projectCount = memoryProjects.length;
+    }
+  }
+
+  if (projectCount === 0) {
+    console.log('[DataStore] Projects list is empty. Auto-discovering videos from Cloudinary...');
+    await DataStore.syncProjectsFromCloudinary();
+  }
 };
 
 export const DataStore = {
@@ -428,6 +443,75 @@ export const DataStore = {
       return true;
     }
     return Boolean(projToDelete);
+  },
+
+  syncProjectsFromCloudinary: async () => {
+    try {
+      const syncRes = await CloudinaryService.syncVideosFromCloudinary();
+      if (!syncRes.success || !syncRes.resources || syncRes.resources.length === 0) {
+        return { success: true, count: 0, message: 'No videos found in Cloudinary' };
+      }
+
+      let addedCount = 0;
+      const cName = process.env.CLOUDINARY_CLOUD_NAME || 'dleaqmeug';
+
+      for (const res of syncRes.resources) {
+        const publicId = res.public_id;
+        const existsInMem = memoryProjects.some(p => p.cloudinaryPublicId === publicId);
+        let existsInDb = false;
+
+        if (getDbStatus()) {
+          try {
+            existsInDb = Boolean(await Project.findOne({ cloudinaryPublicId: publicId }));
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!existsInMem && !existsInDb) {
+          const rawName = publicId.replace(/^portfolio_videos\//, '');
+          const newProj = {
+            id: `proj-${rawName}`,
+            title: `Portfolio Edit — ${rawName.slice(0, 8).toUpperCase()}`,
+            slug: `project-${rawName}`,
+            category: 'Commercial Ads',
+            categoryId: 'cat-commercials',
+            description: 'Cinematic visual edit created and uploaded to studio portfolio.',
+            videoUrl: `https://res.cloudinary.com/${cName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`,
+            thumbnailUrl: `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`,
+            cloudinaryPublicId: publicId,
+            aspectRatio: '16:9',
+            duration: '0:30',
+            featured: false,
+            published: true,
+            client: 'Studio Client',
+            tags: ['Cinematic', 'Visuals'],
+            isDemo: false,
+            createdAt: res.created_at || new Date().toISOString(),
+            updatedAt: res.created_at || new Date().toISOString(),
+          };
+
+          if (getDbStatus()) {
+            try {
+              const createdDb = await Project.create(newProj);
+              memoryProjects.unshift(createdDb.toObject());
+            } catch (err) {
+              memoryProjects.unshift(newProj);
+            }
+          } else {
+            memoryProjects.unshift(newProj);
+          }
+          addedCount++;
+        }
+      }
+
+      savePersistentFile();
+      console.log(`[DataStore] Cloudinary sync complete. Auto-restored ${addedCount} videos.`);
+      return { success: true, count: addedCount, total: memoryProjects.length };
+    } catch (err) {
+      console.warn('[DataStore] Error during Cloudinary sync:', err.message);
+      return { success: false, message: err.message };
+    }
   },
 
   // Services

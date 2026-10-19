@@ -39,6 +39,27 @@ router.get('/admin/all', requireAdminAuth, async (req, res) => {
 });
 
 /**
+ * Admin: Synchronize and restore all videos directly from Cloudinary
+ */
+router.post('/sync-cloudinary', requireAdminAuth, async (req, res) => {
+  try {
+    const result = await DataStore.syncProjectsFromCloudinary();
+    const allProjects = await DataStore.getProjects({ publishedOnly: false });
+    res.json({
+      success: true,
+      message: `Cloudinary sync complete. Restored ${result.count || 0} video projects (${allProjects.length} total).`,
+      data: {
+        syncedCount: result.count || 0,
+        total: allProjects.length,
+        projects: allProjects,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * Public: Get single project by ID or slug
  */
 router.get('/:idOrSlug', async (req, res) => {

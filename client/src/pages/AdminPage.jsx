@@ -121,6 +121,33 @@ export const AdminPage = () => {
     }
   };
 
+  // Sync / Restore Videos Directly from Cloudinary
+  const [syncingCloudinary, setSyncingCloudinary] = useState(false);
+  const handleSyncCloudinary = async () => {
+    setSyncingCloudinary(true);
+    try {
+      const res = await fetch(apiUrl('/api/projects/sync-cloudinary'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('success', data.message || 'Videos synced from Cloudinary!');
+        if (Array.isArray(data.data?.projects)) {
+          setProjects(data.data.projects);
+        } else {
+          loadDashboardData();
+        }
+      } else {
+        showNotification('error', data.message || 'Failed to sync videos');
+      }
+    } catch (err) {
+      showNotification('error', 'Sync request failed: ' + err.message);
+    } finally {
+      setSyncingCloudinary(false);
+    }
+  };
+
   // Video Preview Modal
   const [previewModalProject, setPreviewModalProject] = useState(null);
 
@@ -1214,13 +1241,26 @@ export const AdminPage = () => {
                 </p>
               </div>
 
-              <button
-                onClick={handleOpenUploadModal}
-                className="btn-contact-gradient px-6 py-3 rounded-full text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
-              >
-                <Upload className="w-4 h-4" />
-                Upload Video from Computer
-              </button>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={handleSyncCloudinary}
+                  disabled={syncingCloudinary}
+                  className="px-5 py-3 rounded-full bg-white/5 hover:bg-white/10 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 border border-white/10 transition-colors disabled:opacity-50"
+                  title="Auto-discover & restore all videos uploaded to Cloudinary"
+                >
+                  <RefreshCw className={`w-4 h-4 text-[#B600A8] ${syncingCloudinary ? 'animate-spin' : ''}`} />
+                  {syncingCloudinary ? 'Restoring Videos...' : 'Sync Cloudinary Videos'}
+                </button>
+
+                <button
+                  onClick={handleOpenUploadModal}
+                  className="btn-contact-gradient px-6 py-3 rounded-full text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Video from Computer
+                </button>
+              </div>
             </div>
 
             {projects.length === 0 ? (
@@ -1230,12 +1270,22 @@ export const AdminPage = () => {
                 <p className="text-xs text-[#A6A6A6] mt-1 max-w-sm mx-auto">
                   Click the button below to select a video file from your computer and upload it to Cloudinary.
                 </p>
-                <button
-                  onClick={handleOpenUploadModal}
-                  className="btn-contact-gradient mt-5 px-6 py-2.5 rounded-full text-white text-xs font-semibold inline-flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Upload Your First Video
-                </button>
+                <div className="mt-5 flex items-center justify-center gap-3">
+                  <button
+                    onClick={handleSyncCloudinary}
+                    disabled={syncingCloudinary}
+                    className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs font-semibold inline-flex items-center gap-2 border border-white/10"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-[#B600A8] ${syncingCloudinary ? 'animate-spin' : ''}`} />
+                    {syncingCloudinary ? 'Restoring...' : 'Restore from Cloudinary'}
+                  </button>
+                  <button
+                    onClick={handleOpenUploadModal}
+                    className="btn-contact-gradient px-6 py-2.5 rounded-full text-white text-xs font-semibold inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Upload Video
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="bg-[#141414] border border-white/[0.08] rounded-2xl overflow-hidden shadow-xl">

@@ -209,4 +209,34 @@ export const CloudinaryService = {
       thumbnailUrl: `${baseImage}/so_0,f_auto,q_auto,w_600/${publicId}.jpg`,
     };
   },
+
+  /**
+   * Sync & list all uploaded portfolio videos stored in Cloudinary
+   */
+  syncVideosFromCloudinary: async () => {
+    const aKey = getApiKey();
+    const aSecret = getApiSecret();
+    const cName = getCloudName();
+    if (!aKey || !aSecret || !cName) {
+      return { success: false, message: 'Cloudinary credentials missing', resources: [] };
+    }
+
+    try {
+      initCloudinary(cName);
+      const res = await cloudinary.api.resources({
+        resource_type: 'video',
+        type: 'upload',
+        prefix: 'portfolio_videos',
+        max_results: 100,
+      });
+
+      return {
+        success: true,
+        resources: res.resources || [],
+      };
+    } catch (err) {
+      console.warn('[Cloudinary] syncVideosFromCloudinary error:', err.message);
+      return { success: false, message: err.message, resources: [] };
+    }
+  },
 };
