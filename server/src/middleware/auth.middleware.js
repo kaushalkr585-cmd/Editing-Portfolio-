@@ -29,34 +29,26 @@ export const requireAdminAuth = async (req, res, next) => {
       });
     }
 
-    // Verify against the single authorized admin
-    const primaryAdmin = await DataStore.getPrimaryAdminUser();
-    if (!primaryAdmin) {
+    // Verify user exists and has admin privileges
+    const user = await DataStore.findUserById(decoded.id);
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'No administrator registered.',
+        message: 'Account not found or access revoked.',
       });
     }
 
-    const adminId = String(primaryAdmin._id || primaryAdmin.id);
-    const tokenId = String(decoded.id || '');
-    const isOwner =
-      tokenId === adminId ||
-      (decoded.username && decoded.username.toLowerCase() === primaryAdmin.username.toLowerCase()) ||
-      (decoded.email && decoded.email.toLowerCase() === primaryAdmin.email.toLowerCase());
+    // Strict Single-User-Logged-In enforcement:
+    // 1. Session must match user's latest active session
+    // 2. Session must match the global active session (so no two users can be logged in concurrently)
+    const globalSession = DataStore.getGlobalActiveSession();
+    const isUserSessionActive = !decoded.sessionId || !user.activeSessionId || decoded.sessionId === user.activeSessionId;
+    const isGlobalSessionActive = !decoded.sessionId || !globalSession?.sessionId || decoded.sessionId === globalSession.sessionId;
 
-    if (!isOwner) {
-      return res.status(403).json({
-        success: false,
-        message: 'Forbidden. Only the single authorized administrator can access this resource.',
-      });
-    }
-
-    // Single active session enforcement: reject older session if a newer login occurred
-    if (decoded.sessionId && primaryAdmin.activeSessionId && decoded.sessionId !== primaryAdmin.activeSessionId) {
+    if (!isUserSessionActive || !isGlobalSessionActive) {
       return res.status(401).json({
         success: false,
-        message: 'Session terminated: Another login session was initiated. Only one active login session is permitted.',
+        message: 'Session terminated: Another login session was initiated. Only one user is permitted to be logged in at a time.',
       });
     }
 
@@ -69,4 +61,5 @@ export const requireAdminAuth = async (req, res, next) => {
     });
   }
 };
+
 

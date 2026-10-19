@@ -26,6 +26,7 @@ import {
   Check,
   AlertTriangle,
   Upload,
+  UserPlus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -34,7 +35,9 @@ export const AdminPage = () => {
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Setup / Login form state
+  // Setup / Login / Signup form state
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup'
+  const [signupForm, setSignupForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [setupForm, setSetupForm] = useState({ username: '', email: '', password: '' });
   const [loginForm, setLoginForm] = useState({ identifier: '', password: '' });
   const [authError, setAuthError] = useState('');
@@ -167,6 +170,49 @@ export const AdminPage = () => {
       if (sData.success) setSiteSettings(sData.data);
     } catch (err) {
       console.warn('Error loading dashboard data:', err);
+    }
+  };
+
+  // Signup
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+
+    if (signupForm.password !== signupForm.confirmPassword) {
+      setAuthError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    if (signupForm.password.length < 8) {
+      setAuthError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: signupForm.username,
+          email: signupForm.email,
+          password: signupForm.password,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem('admin_token', data.token);
+        setToken(data.token);
+        setCurrentUser(data.user);
+        setAuthStatus({ loading: false, initialized: true });
+        loadDashboardData();
+      } else {
+        setAuthError(data.message || 'Signup failed');
+      }
+    } catch (err) {
+      setAuthError('Connection error during signup');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -661,88 +707,61 @@ export const AdminPage = () => {
   };
 
   // ==========================================
-  // RENDER 1: SETUP FIRST ADMIN (if none exists)
-  // ==========================================
-  if (!authStatus.initialized && !currentUser) {
-    return (
-      <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#141414] border border-white/10 rounded-3xl p-8 shadow-2xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#B600A8] to-[#BE4C00] flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-6 h-6 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-center text-white">Initialize Admin Account</h2>
-          <p className="text-xs text-[#A6A6A6] text-center mt-1 mb-6">
-            Welcome, Kaushal. Create your primary secure administrator credentials for this portfolio.
-          </p>
-
-          {authError && (
-            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-              {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleSetup} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Username</label>
-              <input
-                type="text"
-                required
-                value={setupForm.username}
-                onChange={(e) => setSetupForm({ ...setupForm, username: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                placeholder="kaushal"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Admin Email</label>
-              <input
-                type="email"
-                required
-                value={setupForm.email}
-                onChange={(e) => setSetupForm({ ...setupForm, email: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                placeholder="contact@kaushalkumar.com"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Password (min 8 chars)</label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={setupForm.password}
-                onChange={(e) => setSetupForm({ ...setupForm, password: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                placeholder="••••••••"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-3 rounded-full btn-contact-gradient text-white text-sm font-semibold shadow-lg disabled:opacity-50"
-            >
-              {authLoading ? 'Creating Account...' : 'Create Admin Account'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // RENDER 2: LOGIN (when unauthenticated)
+  // RENDER: AUTHENTICATION (Log In & Sign Up)
   // ==========================================
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-[#141414] border border-white/10 rounded-3xl p-8 shadow-2xl">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#B600A8] to-[#7621B0] flex items-center justify-center mx-auto mb-4">
-            <Key className="w-6 h-6 text-white" />
+            {authMode === 'signup' ? (
+              <UserPlus className="w-6 h-6 text-white" />
+            ) : (
+              <Key className="w-6 h-6 text-white" />
+            )}
           </div>
-          <h2 className="text-2xl font-bold text-center text-white">Studio Admin Portal</h2>
+          <h2 className="text-2xl font-bold text-center text-white">
+            {authMode === 'signup' ? 'Create Studio Account' : 'Studio Admin Portal'}
+          </h2>
           <p className="text-xs text-[#A6A6A6] text-center mt-1 mb-6">
-            Enter your credentials to manage categories, upload videos, and publish to your portfolio.
+            {authMode === 'signup'
+              ? 'Register your admin credentials to manage and publish your portfolio.'
+              : 'Enter your credentials to manage categories, upload videos, and publish to your portfolio.'}
           </p>
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex bg-[#1A1A1A] p-1 rounded-2xl border border-white/10 mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('login');
+                setAuthError('');
+              }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                authMode === 'login'
+                  ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
+                  : 'text-[#A6A6A6] hover:text-white'
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" />
+              Log In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('signup');
+                setAuthError('');
+              }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                authMode === 'signup'
+                  ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
+                  : 'text-[#A6A6A6] hover:text-white'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Sign Up
+            </button>
+          </div>
 
           {authError && (
             <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
@@ -750,41 +769,126 @@ export const AdminPage = () => {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">
-                Username or Email
-              </label>
-              <input
-                type="text"
-                required
-                value={loginForm.identifier}
-                onChange={(e) => setLoginForm({ ...loginForm, identifier: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                placeholder="kaushal or email"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Password</label>
-              <input
-                type="password"
-                required
-                value={loginForm.password}
-                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
-                placeholder="••••••••"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-3 rounded-full btn-contact-gradient text-white text-sm font-semibold shadow-lg disabled:opacity-50"
-            >
-              {authLoading ? 'Verifying...' : 'Log In to Studio'}
-            </button>
-          </form>
+          {authMode === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">
+                  Username or Email
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={loginForm.identifier}
+                  onChange={(e) => setLoginForm({ ...loginForm, identifier: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="kaushal or email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="••••••••"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-3 rounded-full btn-contact-gradient text-white text-sm font-semibold shadow-lg disabled:opacity-50"
+              >
+                {authLoading ? 'Verifying...' : 'Log In to Studio'}
+              </button>
 
-          <div className="mt-6 text-center">
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setAuthError('');
+                  }}
+                  className="text-xs text-[#BBCCD7] hover:text-white transition-colors"
+                >
+                  Need an account? <span className="text-[#FF55D2] font-semibold underline">Sign Up</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Username</label>
+                <input
+                  type="text"
+                  required
+                  minLength={3}
+                  value={signupForm.username}
+                  onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="kaushal"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={signupForm.email}
+                  onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="kaushalkr.585@gmail.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Password (min 8 chars)</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={signupForm.password}
+                  onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="••••••••"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#BBCCD7] mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={signupForm.confirmPassword}
+                  onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                  className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B600A8]"
+                  placeholder="••••••••"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-3 rounded-full btn-contact-gradient text-white text-sm font-semibold shadow-lg disabled:opacity-50"
+              >
+                {authLoading ? 'Creating Account...' : 'Create Studio Account'}
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setAuthError('');
+                  }}
+                  className="text-xs text-[#BBCCD7] hover:text-white transition-colors"
+                >
+                  Already have an account? <span className="text-[#FF55D2] font-semibold underline">Log In</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="mt-6 text-center border-t border-white/5 pt-4">
             <Link to="/" className="text-xs text-[#A6A6A6] hover:text-white transition-colors">
               ← Return to Public Portfolio
             </Link>

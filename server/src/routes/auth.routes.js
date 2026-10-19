@@ -8,7 +8,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'kaushal_video_editing_portfolio_secure_jwt_2026_dev_key';
 
 /**
- * Check if initial admin account is configured
+ * Check if admin account is configured
  */
 router.get('/status', async (req, res) => {
   try {
@@ -23,24 +23,31 @@ router.get('/status', async (req, res) => {
 });
 
 /**
- * Initial setup: Create first and only admin account
- * Enforces strict single-user policy
+ * Sign Up / Registration Handler
+ * Creates an admin account, issues active session token, and logs in immediately
  */
-router.post('/setup', async (req, res) => {
+const handleSignup = async (req, res) => {
   try {
-    const hasAdmin = await DataStore.hasAdminUser();
-    if (hasAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Registration closed: Only one admin user is allowed. Administrator account has already been initialized.',
-      });
-    }
-
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({
         success: false,
         message: 'Username, email, and password are required.',
+      });
+    }
+
+    if (username.trim().length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username must be at least 3 characters long.',
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address.',
       });
     }
 
@@ -51,30 +58,52 @@ router.post('/setup', async (req, res) => {
       });
     }
 
-    const created = await DataStore.createAdminUser({ username, email, password });
+    const created = await DataStore.registerUser({
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role: 'admin',
+    });
+
+    // Enforce single active session
     const sessionId = crypto.randomUUID();
     await DataStore.updateUserSession(created.id, sessionId);
-    
-    // Auto-login with token
+
     const token = jwt.sign(
-      { id: created.id, username: created.username, email: created.email, role: 'admin', sessionId },
+      {
+        id: created.id,
+        username: created.username,
+        email: created.email,
+        role: created.role || 'admin',
+        sessionId,
+      },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.status(201).json({
       success: true,
-      message: 'Admin user successfully created.',
+      message: 'Account successfully created and signed in.',
       token,
-      user: { id: created.id, username: created.username, email: created.email },
+      user: {
+        id: created.id,
+        username: created.username,
+        email: created.email,
+        role: created.role || 'admin',
+      },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({ success: false, message: error.message });
   }
-});
+};
+
+router.post('/signup', handleSignup);
+router.post('/register', handleSignup);
+router.post('/setup', handleSignup);
 
 /**
- * Admin login: strictly permits only the single authorized admin user
+ * Login: Strictly allows only one user session active across the platform
  */
 router.post('/login', async (req, res) => {
   try {
@@ -86,29 +115,15 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // 1. Verify primary admin exists
-    const primaryAdmin = await DataStore.getPrimaryAdminUser();
-    if (!primaryAdmin) {
+    const user = await DataStore.findUserByEmailOrUsername(identifier.trim());
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'No administrator registered yet. Please run initial setup.',
+        message: 'Invalid credentials. User not found.',
       });
     }
 
-    // 2. Strict authorization: verify identifier matches the single authorized admin
-    const ident = identifier.trim().toLowerCase();
-    const isOwner =
-      primaryAdmin.username.toLowerCase() === ident ||
-      primaryAdmin.email.toLowerCase() === ident;
-
-    if (!isOwner) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access restricted: Only the single authorized portfolio administrator is permitted to log in.',
-      });
-    }
-
-    const isMatch = await primaryAdmin.comparePassword(password);
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -116,16 +131,17 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // 3. Issue new active session ID (invalidates any concurrent/old session)
+    // Single active login: issue new session ID (invalidates any concurrent/older session)
     const sessionId = crypto.randomUUID();
-    await DataStore.updateUserSession(primaryAdmin._id || primaryAdmin.id, sessionId);
+    const userId = user._id || user.id;
+    await DataStore.updateUserSession(userId, sessionId);
 
     const token = jwt.sign(
       {
-        id: primaryAdmin._id || primaryAdmin.id,
-        username: primaryAdmin.username,
-        email: primaryAdmin.email,
-        role: primaryAdmin.role || 'admin',
+        id: userId,
+        username: user.username,
+        email: user.email,
+        role: user.role || 'admin',
         sessionId,
       },
       JWT_SECRET,
@@ -137,10 +153,10 @@ router.post('/login', async (req, res) => {
       message: 'Logged in successfully.',
       token,
       user: {
-        id: primaryAdmin._id || primaryAdmin.id,
-        username: primaryAdmin.username,
-        email: primaryAdmin.email,
-        role: primaryAdmin.role || 'admin',
+        id: userId,
+        username: user.username,
+        email: user.email,
+        role: user.role || 'admin',
       },
     });
   } catch (error) {
@@ -149,7 +165,19 @@ router.post('/login', async (req, res) => {
 });
 
 /**
- * Get current authenticated admin user
+ * Logout: Terminate active session
+ */
+router.post('/logout', (req, res) => {
+  try {
+    DataStore.clearGlobalActiveSession();
+    res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * Get current authenticated user
  */
 router.get('/me', requireAdminAuth, async (req, res) => {
   res.json({
@@ -159,3 +187,4 @@ router.get('/me', requireAdminAuth, async (req, res) => {
 });
 
 export default router;
+

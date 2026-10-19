@@ -43,6 +43,11 @@ let memorySettings = {
   aboutBio: "I turn ideas and raw footage into compelling visual stories. From cinematic edits and anime AMVs to brand videos, real estate films, and podcast content, I focus on pacing, visual storytelling, color, sound, and detail. Let's create something unforgettable together!",
 };
 let memoryUsers = [];
+let globalActiveSession = {
+  userId: null,
+  sessionId: null,
+};
+
 
 // Load persistent data from disk if file exists
 function loadPersistentFile() {
@@ -468,6 +473,19 @@ export const DataStore = {
     return memoryUsers.length > 0;
   },
 
+  // Global Single-Active-Session management
+  setGlobalActiveSession: (userId, sessionId) => {
+    globalActiveSession = { userId: String(userId), sessionId: String(sessionId) };
+  },
+
+  getGlobalActiveSession: () => globalActiveSession,
+
+  clearGlobalActiveSession: (userId) => {
+    if (!userId || globalActiveSession.userId === String(userId)) {
+      globalActiveSession = { userId: null, sessionId: null };
+    }
+  },
+
   getPrimaryAdminUser: async () => {
     if (getDbStatus()) {
       try {
@@ -481,6 +499,7 @@ export const DataStore = {
   },
 
   updateUserSession: async (userId, sessionId) => {
+    DataStore.setGlobalActiveSession(userId, sessionId);
     if (getDbStatus()) {
       try {
         await User.findByIdAndUpdate(userId, { activeSessionId: sessionId });
@@ -489,7 +508,7 @@ export const DataStore = {
         console.warn('[DataStore] MongoDB updateUserSession error:', err.message);
       }
     }
-    const u = memoryUsers.find(u => u._id === userId || u.id === userId);
+    const u = memoryUsers.find(u => String(u._id) === String(userId) || String(u.id) === String(userId));
     if (u) {
       u.activeSessionId = sessionId;
       savePersistentFile();
@@ -498,10 +517,56 @@ export const DataStore = {
     return false;
   },
 
-  createAdminUser: async ({ username, email, password }) => {
-    const alreadyExists = await DataStore.hasAdminUser();
-    if (alreadyExists) {
-      throw new Error('Security policy violation: Only one admin user is permitted to exist.');
+  findUserById: async (id) => {
+    if (getDbStatus()) {
+      try {
+        const user = await User.findById(id);
+        if (user) return user;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB findUserById error:', err.message);
+      }
+    }
+    const u = memoryUsers.find(u => String(u._id) === String(id) || String(u.id) === String(id));
+    if (u) {
+      return {
+        ...u,
+        comparePassword: async (pwd) => bcrypt.compare(pwd, u.password),
+      };
+    }
+    return null;
+  },
+
+  registerUser: async ({ username, email, password, role = 'admin' }) => {
+    const cleanUser = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user already exists
+    const existing =
+      (await DataStore.findUserByEmailOrUsername(cleanEmail)) ||
+      (await DataStore.findUserByEmailOrUsername(cleanUser));
+
+    if (existing) {
+      // If existing user is placeholder seed 'kaushal@portfolio.com', update with real credentials
+      if (existing.email === 'kaushal@portfolio.com' && cleanEmail !== 'kaushal@portfolio.com') {
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(password, salt);
+        if (getDbStatus()) {
+          try {
+            const updated = await User.findByIdAndUpdate(
+              existing._id || existing.id,
+              { username: cleanUser, email: cleanEmail, password: passwordHash },
+              { new: true }
+            );
+            return { id: updated._id, username: updated.username, email: updated.email, role: updated.role || role };
+          } catch (err) {
+            console.warn('[DataStore] MongoDB update placeholder error:', err.message);
+          }
+        }
+      } else {
+        const err = new Error('An account with this email or username already exists. Please log in.');
+        err.statusCode = 409;
+        throw err;
+      }
     }
 
     const salt = await bcrypt.genSalt(12);
@@ -509,25 +574,39 @@ export const DataStore = {
 
     if (getDbStatus()) {
       try {
-        const user = await User.create({ username, email, password });
-        return { id: user._id, username: user.username, email: user.email };
+        const user = await User.create({
+          username: cleanUser,
+          email: cleanEmail,
+          password,
+          role,
+        });
+        return { id: user._id, username: user.username, email: user.email, role: user.role };
       } catch (err) {
-        console.warn('[DataStore] MongoDB createAdmin error:', err.message);
+        if (err.code === 11000) {
+          const duplicateErr = new Error('An account with this email or username already exists. Please log in.');
+          duplicateErr.statusCode = 409;
+          throw duplicateErr;
+        }
+        console.warn('[DataStore] MongoDB registerUser error:', err.message);
       }
     }
 
     const newUser = {
       _id: 'usr-' + Date.now(),
-      username,
-      email,
+      username: cleanUser,
+      email: cleanEmail,
       password: passwordHash,
-      role: 'admin',
+      role,
       activeSessionId: null,
       comparePassword: async (pwd) => bcrypt.compare(pwd, passwordHash),
     };
     memoryUsers.push(newUser);
     savePersistentFile();
-    return { id: newUser._id, username: newUser.username, email: newUser.email };
+    return { id: newUser._id, username: newUser.username, email: newUser.email, role: newUser.role };
+  },
+
+  createAdminUser: async ({ username, email, password }) => {
+    return DataStore.registerUser({ username, email, password, role: 'admin' });
   },
 
   findUserByEmailOrUsername: async (identifier) => {

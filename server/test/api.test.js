@@ -129,27 +129,24 @@ async function runTests() {
     assert.strictEqual(res.status, 401);
   });
 
-  // 7. Auth: Setup / Login / Me flow
+  // 7. Auth: Signup / Login / Me flow
   let adminToken = '';
-  await test('POST /api/auth/setup creates admin or login authenticates admin', async () => {
-    const statusRes = await fetch(`${BASE_URL}/api/auth/status`);
-    const statusData = await statusRes.json();
-
-    if (!statusData.initialized) {
-      const setupRes = await fetch(`${BASE_URL}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: 'kaushalkumar',
-          email: 'kaushal@portfolio.com',
-          password: 'SecureAdminPassword2026!',
-        }),
-      });
-      const setupData = await setupRes.json();
-      assert.strictEqual(setupRes.status, 201);
-      assert.ok(setupData.token);
-      adminToken = setupData.token;
+  await test('POST /api/auth/signup creates admin or login authenticates admin', async () => {
+    const signupRes = await fetch(`${BASE_URL}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'kaushalkumar',
+        email: 'kaushal@portfolio.com',
+        password: 'SecureAdminPassword2026!',
+      }),
+    });
+    const signupData = await signupRes.json();
+    if (signupRes.status === 201) {
+      assert.ok(signupData.token);
+      adminToken = signupData.token;
     } else {
+      // If already created, authenticate via login
       const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,6 +162,52 @@ async function runTests() {
     }
   });
 
+  await test('POST /api/auth/signup rejects short password (< 8 chars) with 400', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'newuser1',
+        email: 'new1@portfolio.com',
+        password: '123',
+      }),
+    });
+    assert.strictEqual(res.status, 400);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+    assert.ok(data.message.includes('8 characters'));
+  });
+
+  await test('POST /api/auth/signup rejects duplicate existing user with 409', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'kaushalkumar',
+        email: 'kaushal@portfolio.com',
+        password: 'AnotherPassword123!',
+      }),
+    });
+    assert.strictEqual(res.status, 409);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+    assert.ok(data.message.includes('already exists'));
+  });
+
+  await test('POST /api/auth/login blocks invalid credentials with 401', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: 'kaushalkumar',
+        password: 'WrongPassword!',
+      }),
+    });
+    assert.strictEqual(res.status, 401);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+  });
+
   await test('GET /api/auth/me succeeds with valid Bearer token', async () => {
     const res = await fetch(`${BASE_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -175,42 +218,10 @@ async function runTests() {
     assert.strictEqual(data.user.role, 'admin');
   });
 
-  // 7b. Single-User Policy & Session Invalidation
-  await test('POST /api/auth/setup blocks registering a secondary administrator with 403', async () => {
-    const res = await fetch(`${BASE_URL}/api/auth/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'secondaryadmin',
-        email: 'secondary@portfolio.com',
-        password: 'AnotherPassword123!',
-      }),
-    });
-    assert.strictEqual(res.status, 403);
-    const data = await res.json();
-    assert.strictEqual(data.success, false);
-    assert.ok(data.message.includes('Only one admin user is allowed'));
-  });
-
-  await test('POST /api/auth/login blocks unauthorized user from logging in with 403', async () => {
-    const res = await fetch(`${BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        identifier: 'intruder',
-        password: 'WrongPassword!',
-      }),
-    });
-    assert.strictEqual(res.status, 403);
-    const data = await res.json();
-    assert.strictEqual(data.success, false);
-    assert.ok(data.message.includes('Only the single authorized portfolio administrator is permitted'));
-  });
-
-  await test('Single active session: second login invalidates previous session token', async () => {
+  await test('Single active user: second login invalidates previous session token', async () => {
     const oldToken = adminToken;
 
-    // Perform a second login as the primary admin
+    // Perform a second login as the user
     const loginRes2 = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -231,7 +242,7 @@ async function runTests() {
     });
     assert.strictEqual(oldRes.status, 401);
     const oldData = await oldRes.json();
-    assert.ok(oldData.message.includes('Session terminated') || oldData.message.includes('Only one active login session'));
+    assert.ok(oldData.message.includes('Session terminated') || oldData.message.includes('Only one user is permitted'));
 
     // Using the new token must succeed
     const newRes = await fetch(`${BASE_URL}/api/auth/me`, {
