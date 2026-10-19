@@ -62,10 +62,14 @@ export const Navbar = () => {
           onClick={(e) => handleNavClick(e, '#home')}
           className="group flex items-center gap-2.5 text-lg sm:text-xl font-bold tracking-wider text-white"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#B600A8] to-[#BE4C00] flex items-center justify-center p-0.5 shadow-glow-magenta group-hover:scale-105 transition-transform duration-200">
-            <Film className="w-4 h-4 text-white" />
+          <div className="relative w-8 h-8 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center p-1 group-hover:border-[#B600A8]/50 group-hover:shadow-glow-magenta transition-all duration-200">
+            <img
+              src="/logo.png"
+              alt="Kaushal Kumar Logo"
+              className="w-full h-full object-contain filter drop-shadow"
+            />
           </div>
-          <span className="tracking-tight text-white group-hover:text-[#BBCCD7] transition-colors">
+          <span className="tracking-tight text-white group-hover:text-[#BBCCD7] transition-colors font-extrabold">
             KAUSHAL KUMAR
           </span>
           <span className="text-[10px] uppercase tracking-widest text-[#B600A8] font-medium bg-[#B600A8]/10 px-2 py-0.5 rounded border border-[#B600A8]/20 hidden sm:inline-block">

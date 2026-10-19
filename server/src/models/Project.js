@@ -46,6 +46,11 @@ const projectSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    thumbnailPublicId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     duration: {
       type: String,
       default: '0:30',

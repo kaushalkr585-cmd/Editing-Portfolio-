@@ -147,7 +147,7 @@ export const CloudinaryService = {
     const baseImage = `https://res.cloudinary.com/${currentCloudName}/video/upload`;
 
     return {
-      videoUrl: `${baseVideo}/q_auto,vc_auto/${publicId}.mp4`,
+      videoUrl: `${baseVideo}/q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`,
       posterUrl: `${baseImage}/so_0,q_auto,f_auto,w_1200/${publicId}.jpg`,
       thumbnailUrl: `${baseImage}/so_0,q_auto,f_auto,w_600/${publicId}.jpg`,
     };

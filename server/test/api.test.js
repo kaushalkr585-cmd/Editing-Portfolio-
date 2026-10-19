@@ -304,6 +304,7 @@ async function runTests() {
   });
 
   // 9. Cloudinary Configuration & Signature Generation
+  let initialCloudName = '';
   await test('GET /api/cloudinary/config returns public config and never exposes secrets', async () => {
     const res = await fetch(`${BASE_URL}/api/cloudinary/config`);
     const data = await res.json();
@@ -311,6 +312,7 @@ async function runTests() {
     assert.strictEqual(data.success, true);
     assert.strictEqual(typeof data.data.isConfigured, 'boolean');
     assert.strictEqual(data.data.apiSecret, undefined); // Secret must never be exposed
+    initialCloudName = data.data.cloudName || '';
   });
 
   await test('POST /api/cloudinary/cloud-name sets cloud name dynamically', async () => {
@@ -348,6 +350,18 @@ async function runTests() {
     assert.ok(data.data.timestamp);
     assert.strictEqual(data.data.apiKey, '345889382685534');
     assert.strictEqual(data.data.cloudName, 'test-portfolio-cloud');
+
+    // Restore original real cloud name if one was configured
+    if (initialCloudName && initialCloudName !== 'test-portfolio-cloud') {
+      await fetch(`${BASE_URL}/api/cloudinary/cloud-name`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ cloudName: initialCloudName }),
+      });
+    }
   });
 
   // 10. Admin Project CRUD & Dynamic Filtering

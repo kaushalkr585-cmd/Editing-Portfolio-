@@ -13,11 +13,15 @@ export const Footer = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/[0.06]">
           {/* Brand */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#B600A8] to-[#BE4C00] flex items-center justify-center p-0.5">
-              <Film className="w-4 h-4 text-white" />
+            <div className="relative w-9 h-9 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center p-1.5 shadow-md">
+              <img
+                src="/logo.png"
+                alt="Kaushal Kumar Logo"
+                className="w-full h-full object-contain filter drop-shadow"
+              />
             </div>
             <div>
-              <span className="text-base font-bold text-white tracking-wide block">
+              <span className="text-base font-extrabold text-white tracking-wide block">
                 KAUSHAL KUMAR
               </span>
               <span className="text-[11px] text-[#BBCCD7]">

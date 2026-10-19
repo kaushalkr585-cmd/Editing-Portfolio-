@@ -27,8 +27,12 @@ import {
   AlertTriangle,
   Upload,
   UserPlus,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { VideoCoverPicker } from '../components/common/VideoCoverPicker';
+import { apiUrl } from '../utils/api';
 
 export const AdminPage = () => {
   const [authStatus, setAuthStatus] = useState({ loading: true, initialized: true });
@@ -75,6 +79,15 @@ export const AdminPage = () => {
     published: true,
   });
 
+  // Selected Cover State for Upload Modal (Instagram-Style)
+  const [selectedCover, setSelectedCover] = useState(null); // { blob, dataUrl, file, frameTime, type }
+
+  // Change Cover Thumbnail Modal (Edit Thumbnail Later)
+  const [coverEditProject, setCoverEditProject] = useState(null);
+  const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
+  const [newCoverData, setNewCoverData] = useState(null);
+  const [isSavingCover, setIsSavingCover] = useState(false);
+
   // Project Edit Modal State
   const [editingProject, setEditingProject] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -101,12 +114,12 @@ export const AdminPage = () => {
 
   const checkAuthStatus = async () => {
     try {
-      const res = await fetch('/api/auth/status');
+      const res = await fetch(apiUrl('/api/auth/status'));
       const data = await res.json();
       setAuthStatus({ loading: false, initialized: data.initialized });
 
       if (token) {
-        const meRes = await fetch('/api/auth/me', {
+        const meRes = await fetch(apiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (meRes.ok) {
@@ -129,7 +142,7 @@ export const AdminPage = () => {
     if (!token) return;
     try {
       // 1. Load Categories
-      const catRes = await fetch('/api/categories');
+      const catRes = await fetch(apiUrl('/api/categories'));
       const catData = await catRes.json();
       if (catData.success && Array.isArray(catData.data)) {
         setCategories(catData.data);
@@ -143,21 +156,21 @@ export const AdminPage = () => {
       }
 
       // 2. Load all Projects (including drafts)
-      const pRes = await fetch('/api/projects/admin/all', {
+      const pRes = await fetch(apiUrl('/api/projects/admin/all'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const pData = await pRes.json();
       if (pData.success && Array.isArray(pData.data)) setProjects(pData.data);
 
       // 3. Load Inquiries
-      const iRes = await fetch('/api/inquiries', {
+      const iRes = await fetch(apiUrl('/api/inquiries'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const iData = await iRes.json();
       if (iData.success && Array.isArray(iData.data)) setInquiries(iData.data);
 
       // 4. Load Cloudinary config
-      const cRes = await fetch('/api/cloudinary/config');
+      const cRes = await fetch(apiUrl('/api/cloudinary/config'));
       const cData = await cRes.json();
       if (cData.success) {
         setCloudinaryConfig(cData.data);
@@ -165,7 +178,7 @@ export const AdminPage = () => {
       }
 
       // 5. Load Site Settings
-      const sRes = await fetch('/api/settings');
+      const sRes = await fetch(apiUrl('/api/settings'));
       const sData = await sRes.json();
       if (sData.success) setSiteSettings(sData.data);
     } catch (err) {
@@ -190,7 +203,7 @@ export const AdminPage = () => {
 
     setAuthLoading(true);
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch(apiUrl('/api/auth/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -222,7 +235,7 @@ export const AdminPage = () => {
     setAuthError('');
     setAuthLoading(true);
     try {
-      const res = await fetch('/api/auth/setup', {
+      const res = await fetch(apiUrl('/api/auth/setup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(setupForm),
@@ -250,7 +263,7 @@ export const AdminPage = () => {
     setAuthError('');
     setAuthLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm),
@@ -284,7 +297,7 @@ export const AdminPage = () => {
     if (!cloudNameInput.trim()) return;
     setSavingCloudName(true);
     try {
-      const res = await fetch('/api/cloudinary/cloud-name', {
+      const res = await fetch(apiUrl('/api/cloudinary/cloud-name'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -335,7 +348,7 @@ export const AdminPage = () => {
     const method = isEdit ? 'PUT' : 'POST';
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl(url), {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -363,7 +376,7 @@ export const AdminPage = () => {
     }
 
     try {
-      const res = await fetch(`/api/categories/${catId}`, {
+      const res = await fetch(apiUrl(`/api/categories/${catId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -437,6 +450,7 @@ export const AdminPage = () => {
 
   const handleOpenUploadModal = () => {
     setSelectedFile(null);
+    setSelectedCover(null);
     if (previewVideoUrl) {
       URL.revokeObjectURL(previewVideoUrl);
       setPreviewVideoUrl('');
@@ -473,13 +487,10 @@ export const AdminPage = () => {
     }
 
     // Check Cloudinary configuration
-    if (!cloudinaryConfig?.isConfigured) {
-      if (cloudinaryConfig?.missingConfig?.includes('CLOUDINARY_CLOUD_NAME')) {
-        setActiveTab('cloudinary');
-        setIsUploadModalOpen(false);
-        alert('Cloudinary Cloud Name is required before uploading. Please enter your Cloud Name below.');
-        return;
-      }
+    const activeCloudName = cloudinaryConfig?.cloudName;
+    if (!activeCloudName || activeCloudName === 'test-portfolio-cloud') {
+      setUploadError('Valid Cloudinary Cloud Name is required. Please enter your Cloud Name below.');
+      return;
     }
 
     setUploadStatus('uploading');
@@ -488,7 +499,7 @@ export const AdminPage = () => {
 
     try {
       // 1. Request secure signed upload parameters from backend
-      const sigRes = await fetch('/api/cloudinary/signature?folder=portfolio_videos', {
+      const sigRes = await fetch(apiUrl('/api/cloudinary/signature?folder=portfolio_videos'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const sigJson = await sigRes.json();
@@ -545,8 +556,44 @@ export const AdminPage = () => {
 
       // 3. Construct optimized Cloudinary video and poster URLs
       const publicId = cloudinaryResult.public_id;
-      const videoDeliveryUrl = cloudinaryResult.secure_url;
-      const posterUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,q_auto,f_auto,w_1200/${publicId}.jpg`;
+      const videoDeliveryUrl = `https://res.cloudinary.com/${cloudName}/video/upload/q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`;
+      let finalThumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,q_auto,f_auto,w_1200/${publicId}.jpg`;
+      let finalThumbnailPublicId = '';
+
+      // Upload selected cover frame / custom image to Cloudinary if chosen
+      if (selectedCover && (selectedCover.blob || selectedCover.file)) {
+        try {
+          const thumbSigRes = await fetch(apiUrl('/api/cloudinary/signature?folder=portfolio_thumbnails'), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const thumbSigJson = await thumbSigRes.json();
+          if (thumbSigJson.success && thumbSigJson.data) {
+            const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder } = thumbSigJson.data;
+            const thumbFormData = new FormData();
+            const coverUploadFile = selectedCover.file || selectedCover.blob;
+            thumbFormData.append('file', coverUploadFile, selectedCover.file?.name || 'cover.jpg');
+            thumbFormData.append('api_key', tKey);
+            thumbFormData.append('timestamp', tTs);
+            thumbFormData.append('signature', tSig);
+            thumbFormData.append('folder', tFolder);
+
+            const thumbRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+              method: 'POST',
+              body: thumbFormData,
+            });
+            const thumbData = await thumbRes.json();
+            if (thumbData.secure_url) {
+              finalThumbnailUrl = thumbData.secure_url;
+              finalThumbnailPublicId = thumbData.public_id;
+            }
+          }
+        } catch (thumbErr) {
+          console.warn('[Thumbnail Upload Error]', thumbErr);
+        }
+      } else if (selectedCover?.frameTime !== undefined && selectedCover.frameTime !== null) {
+        const soSec = Math.round(selectedCover.frameTime * 10) / 10;
+        finalThumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_${soSec},q_auto,f_auto,w_1200/${publicId}.jpg`;
+      }
 
       // 4. Create project record in backend database
       const projectPayload = {
@@ -555,7 +602,8 @@ export const AdminPage = () => {
         categoryId: uploadForm.categoryId,
         description: uploadForm.description.trim(),
         videoUrl: videoDeliveryUrl,
-        thumbnailUrl: posterUrl,
+        thumbnailUrl: finalThumbnailUrl,
+        thumbnailPublicId: finalThumbnailPublicId,
         cloudinaryPublicId: publicId,
         duration: uploadForm.duration || `${Math.floor(cloudinaryResult.duration || 30)}s`,
         aspectRatio: uploadForm.aspectRatio,
@@ -564,7 +612,7 @@ export const AdminPage = () => {
         tags: uploadForm.tags ? uploadForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       };
 
-      const saveRes = await fetch('/api/projects', {
+      const saveRes = await fetch(apiUrl('/api/projects'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -607,7 +655,7 @@ export const AdminPage = () => {
     e.preventDefault();
     const projId = editingProject._id || editingProject.id;
     try {
-      const res = await fetch(`/api/projects/${projId}`, {
+      const res = await fetch(apiUrl(`/api/projects/${projId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -635,7 +683,7 @@ export const AdminPage = () => {
     }
 
     try {
-      const res = await fetch(`/api/projects/${projId}`, {
+      const res = await fetch(apiUrl(`/api/projects/${projId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -651,10 +699,86 @@ export const AdminPage = () => {
     }
   };
 
+  // ==========================================
+  // CHANGE COVER THUMBNAIL (Instagram-Style)
+  // ==========================================
+  const handleOpenChangeCover = (proj) => {
+    setCoverEditProject(proj);
+    setNewCoverData(null);
+    setIsCoverModalOpen(true);
+  };
+
+  const handleSaveChangedCover = async () => {
+    if (!coverEditProject) return;
+    if (!newCoverData || (!newCoverData.blob && !newCoverData.file)) {
+      alert('Please scrub to a video frame or upload a custom image first.');
+      return;
+    }
+
+    setIsSavingCover(true);
+    try {
+      const activeCloudName = cloudinaryConfig?.cloudName;
+      const thumbSigRes = await fetch(apiUrl('/api/cloudinary/signature?folder=portfolio_thumbnails'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const thumbSigJson = await thumbSigRes.json();
+      if (!thumbSigJson.success || !thumbSigJson.data) {
+        throw new Error(thumbSigJson.message || 'Failed to get upload signature for cover image.');
+      }
+
+      const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder } = thumbSigJson.data;
+      const thumbFormData = new FormData();
+      const coverUploadFile = newCoverData.file || newCoverData.blob;
+      thumbFormData.append('file', coverUploadFile, newCoverData.file?.name || 'cover.jpg');
+      thumbFormData.append('api_key', tKey);
+      thumbFormData.append('timestamp', tTs);
+      thumbFormData.append('signature', tSig);
+      thumbFormData.append('folder', tFolder);
+
+      const thumbRes = await fetch(`https://api.cloudinary.com/v1_1/${activeCloudName}/image/upload`, {
+        method: 'POST',
+        body: thumbFormData,
+      });
+      const thumbData = await thumbRes.json();
+      if (!thumbData.secure_url) {
+        throw new Error(thumbData.error?.message || 'Failed to upload new cover image.');
+      }
+
+      const projId = coverEditProject._id || coverEditProject.id;
+      const updateRes = await fetch(apiUrl(`/api/projects/${projId}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          thumbnailUrl: thumbData.secure_url,
+          thumbnailPublicId: thumbData.public_id,
+        }),
+      });
+
+      const updateJson = await updateRes.json();
+      if (!updateJson.success) {
+        throw new Error(updateJson.message || 'Failed to update project record.');
+      }
+
+      showNotification('success', `Cover thumbnail updated for "${coverEditProject.title}"!`);
+      setIsCoverModalOpen(false);
+      setCoverEditProject(null);
+      setNewCoverData(null);
+      loadDashboardData();
+    } catch (err) {
+      console.error('[Change Cover Error]', err);
+      alert(`Error updating cover thumbnail: ${err.message}`);
+    } finally {
+      setIsSavingCover(false);
+    }
+  };
+
   const handleToggleProjectStatus = async (proj, field) => {
     const projId = proj._id || proj.id;
     try {
-      await fetch(`/api/projects/${projId}`, {
+      await fetch(apiUrl(`/api/projects/${projId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -671,7 +795,7 @@ export const AdminPage = () => {
   // Inquiry Status Handler
   const handleUpdateInquiryStatus = async (inqId, nextStatus) => {
     try {
-      await fetch(`/api/inquiries/${inqId}/status`, {
+      await fetch(apiUrl(`/api/inquiries/${inqId}/status`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -689,7 +813,7 @@ export const AdminPage = () => {
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(apiUrl('/api/settings'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -713,12 +837,8 @@ export const AdminPage = () => {
     return (
       <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-[#141414] border border-white/10 rounded-3xl p-8 shadow-2xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#B600A8] to-[#7621B0] flex items-center justify-center mx-auto mb-4">
-            {authMode === 'signup' ? (
-              <UserPlus className="w-6 h-6 text-white" />
-            ) : (
-              <Key className="w-6 h-6 text-white" />
-            )}
+          <div className="w-14 h-14 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center mx-auto mb-4 p-2.5 shadow-lg">
+            <img src="/logo.png" alt="Kaushal Kumar Logo" className="w-full h-full object-contain filter drop-shadow" />
           </div>
           <h2 className="text-2xl font-bold text-center text-white">
             {authMode === 'signup' ? 'Create Studio Account' : 'Studio Admin Portal'}
@@ -906,11 +1026,15 @@ export const AdminPage = () => {
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 bg-[#141414]/90 backdrop-blur-md border-b border-white/[0.08] px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#B600A8] to-[#BE4C00] flex items-center justify-center p-0.5">
-            <Film className="w-4 h-4 text-white" />
+          <div className="relative w-8 h-8 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center p-1 shadow-md">
+            <img
+              src="/logo.png"
+              alt="Kaushal Kumar Logo"
+              className="w-full h-full object-contain filter drop-shadow"
+            />
           </div>
           <div>
-            <span className="font-bold text-white text-sm sm:text-base tracking-wide block">
+            <span className="font-extrabold text-white text-sm sm:text-base tracking-wide block">
               KAUSHAL KUMAR
             </span>
             <span className="text-[10px] text-[#BBCCD7] uppercase tracking-wider">
@@ -1155,9 +1279,16 @@ export const AdminPage = () => {
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <button
+                                  onClick={() => handleOpenChangeCover(proj)}
+                                  className="p-1.5 rounded-lg bg-[#B600A8]/10 hover:bg-[#B600A8]/20 text-[#B600A8] hover:text-white"
+                                  title="Change Cover Thumbnail (Instagram-Style)"
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                </button>
+                                <button
                                   onClick={() => handleEditProject(proj)}
                                   className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#BBCCD7] hover:text-white"
-                                  title="Edit Project"
+                                  title="Edit Project Details"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1553,7 +1684,61 @@ export const AdminPage = () => {
               )}
             </div>
 
-            {uploadError && (
+            {(!cloudinaryConfig?.cloudName || cloudinaryConfig?.cloudName === 'test-portfolio-cloud' || uploadError.toLowerCase().includes('cloud_name')) && (
+              <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-white block text-sm">Cloudinary Cloud Name Required</span>
+                    <p className="text-[#A6A6A6] text-xs mt-0.5 leading-relaxed">
+                      Enter your Cloudinary Cloud Name (from your Cloudinary Dashboard under <strong>"Cloud name"</strong>) to enable video uploads:
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={cloudNameInput}
+                    onChange={(e) => setCloudNameInput(e.target.value)}
+                    placeholder="Enter your Cloud Name (e.g. dxyz123abc)"
+                    className="flex-1 bg-[#141414] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-[#6E6E6E] focus:outline-none focus:border-[#B600A8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!cloudNameInput.trim()) return;
+                      setSavingCloudName(true);
+                      try {
+                        const res = await fetch('/api/cloudinary/cloud-name', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ cloudName: cloudNameInput.trim() }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setCloudinaryConfig(data.data);
+                          setUploadError('');
+                          showNotification('success', 'Cloud Name saved! Click "Upload & Publish Project" to proceed.');
+                        } else {
+                          setUploadError(data.message || 'Failed to save Cloud Name');
+                        }
+                      } catch (e) {
+                        setUploadError('Failed to save Cloud Name');
+                      } finally {
+                        setSavingCloudName(false);
+                      }
+                    }}
+                    disabled={savingCloudName || !cloudNameInput.trim()}
+                    className="btn-contact-gradient px-4 py-2 rounded-xl text-white font-semibold text-xs disabled:opacity-50 flex items-center gap-1.5 shadow shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {savingCloudName ? 'Saving...' : 'Save Cloud Name'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {uploadError && !uploadError.toLowerCase().includes('cloud_name') && (
               <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{uploadError}</span>
@@ -1622,6 +1807,15 @@ export const AdminPage = () => {
                         />
                       </div>
                     )}
+
+                    {/* Instagram-Style Video Cover Selection */}
+                    <div className="pt-2">
+                      <VideoCoverPicker
+                        videoSource={selectedFile}
+                        aspectRatio={uploadForm.aspectRatio}
+                        onCoverSelected={setSelectedCover}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1992,6 +2186,44 @@ export const AdminPage = () => {
                 </label>
               </div>
 
+              {/* Cover Thumbnail Quick Action */}
+              <div className="p-3 bg-[#1A1A1A] rounded-xl border border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-10 rounded-lg overflow-hidden bg-black border border-white/10 shrink-0">
+                    {editingProject.thumbnailUrl ? (
+                      <img
+                        src={editingProject.thumbnailUrl}
+                        alt="Current cover"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[#6E6E6E]">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-white block">Cover Thumbnail</span>
+                    <span className="text-[11px] text-[#A6A6A6] block">
+                      Choose a new frame or upload custom cover
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const proj = editingProject;
+                    setIsEditModalOpen(false);
+                    handleOpenChangeCover(proj);
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#B600A8]/20 hover:bg-[#B600A8]/30 text-[#B600A8] text-xs font-semibold flex items-center gap-1.5 border border-[#B600A8]/30 transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  Change Cover
+                </button>
+              </div>
+
               <div className="pt-4 flex justify-end gap-3 border-t border-white/[0.08]">
                 <button
                   type="button"
@@ -2050,6 +2282,91 @@ export const AdminPage = () => {
                   Cloudinary ID: {previewModalProject.cloudinaryPublicId}
                 </span>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* MODAL 5: CHANGE COVER THUMBNAIL (Instagram-Style) */}
+      {/* ==================================================== */}
+      {isCoverModalOpen && coverEditProject && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
+          onClick={() => !isSavingCover && setIsCoverModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-[#141414] border border-white/10 rounded-3xl p-5 sm:p-7 shadow-2xl my-auto animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-white/[0.08] mb-5">
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-[#B600A8]" />
+                  Change Project Cover Thumbnail
+                </h3>
+                <p className="text-xs text-[#A6A6A6] mt-0.5">
+                  Pick a new frame from "{coverEditProject.title}" or upload a custom image. Saves instantly without re-uploading the video!
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSavingCover && setIsCoverModalOpen(false)}
+                className="p-1 rounded-full text-[#A6A6A6] hover:text-white"
+                disabled={isSavingCover}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <VideoCoverPicker
+                videoSource={coverEditProject.videoUrl}
+                initialCoverUrl={coverEditProject.thumbnailUrl}
+                aspectRatio={coverEditProject.aspectRatio || '16:9'}
+                onCoverSelected={setNewCoverData}
+              />
+
+              <div className="pt-4 flex items-center justify-between border-t border-white/[0.08]">
+                <div className="text-xs text-[#BBCCD7]">
+                  {newCoverData ? (
+                    <span className="text-emerald-400 font-medium flex items-center gap-1.5">
+                      <Check className="w-4 h-4" /> New cover frame selected
+                    </span>
+                  ) : (
+                    <span className="text-[#A6A6A6]">Scrub the timeline or select a custom image above.</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isSavingCover}
+                    onClick={() => setIsCoverModalOpen(false)}
+                    className="px-5 py-2.5 rounded-full bg-white/5 hover:bg-white/10 text-xs font-medium text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingCover || !newCoverData}
+                    onClick={handleSaveChangedCover}
+                    className="btn-contact-gradient px-6 py-2.5 rounded-full text-white text-xs font-semibold shadow-md flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSavingCover ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Uploading to Cloudinary...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Save New Cover
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

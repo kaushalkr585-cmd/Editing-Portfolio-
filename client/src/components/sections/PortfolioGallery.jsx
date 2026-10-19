@@ -3,6 +3,8 @@ import { Search, Play, Clock, Eye, AlertCircle, Film, Sparkles, Plus } from 'luc
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
 import { ProjectModal } from './ProjectModal';
+import { getOptimizedVideoUrl } from '../../utils/videoUtils';
+import { apiUrl } from '../../utils/api';
 
 export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
   const [projects, setProjects] = useState([]);
@@ -18,7 +20,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
   // Fetch categories from backend API
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch(apiUrl('/api/categories'));
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setCategories(data.data);
@@ -32,7 +34,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/projects');
+      const res = await fetch(apiUrl('/api/projects'));
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setProjects(data.data);
@@ -265,7 +267,7 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
                       {project.videoUrl && (
                         <video
                           ref={(el) => (videoRefs.current[projectId] = el)}
-                          src={project.videoUrl}
+                          src={getOptimizedVideoUrl(project.videoUrl, { maxWidth: 720, quality: 'q_auto:eco' })}
                           preload="none"
                           muted
                           loop
@@ -290,10 +292,13 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
                       </div>
 
                       {/* Center Play Button Overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 gap-2">
                         <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                           <Play className="w-5 h-5 fill-black ml-0.5" />
                         </div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-white bg-black/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 shadow-md">
+                          Play with Audio
+                        </span>
                       </div>
 
                       {/* Bottom Duration Badge */}

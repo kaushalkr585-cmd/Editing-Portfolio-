@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, ArrowDown, Sparkles, CheckCircle2 } from "lucide-react";
 import { FadeIn } from "../common/FadeIn";
+import { apiUrl } from "../../utils/api";
 
 export const Hero = () => {
   const [showShowreelButton, setShowShowreelButton] = useState(false);
@@ -13,13 +14,13 @@ export const Hero = () => {
       return;
     }
     // Check if showreel is configured
-    fetch("/api/settings")
+    fetch(apiUrl("/api/settings"))
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data?.showreelUrl) {
           setShowShowreelButton(true);
         } else {
-          fetch("/api/projects?featured=true")
+          fetch(apiUrl("/api/projects?featured=true"))
             .then((r) => r.json())
             .then((p) => {
               if (p.success && p.data && p.data.length > 0) {
@@ -47,14 +48,7 @@ export const Hero = () => {
       <div className="absolute -top-12 -left-20 w-96 h-96 bg-[#18011F]/60 blur-[100px] rounded-full pointer-events-none -z-10" />
       <div className="absolute bottom-10 right-0 w-80 h-80 bg-[#BE4C00]/10 blur-[100px] rounded-full pointer-events-none -z-10" />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 flex flex-col items-center">
-        {/* Availability Badge */}
-        <FadeIn delay={0.1} y={-10}>
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#141414] border border-white/10 text-xs sm:text-sm text-[#F5F5F5] mb-6 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          </div>
-        </FadeIn>
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
         {/* Main Headline */}
         <FadeIn delay={0.2} y={20}>
           <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase tracking-tight leading-[1.05] max-w-5xl text-white">

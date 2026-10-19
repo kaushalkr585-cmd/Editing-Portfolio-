@@ -91,7 +91,7 @@ function savePersistentFile() {
 // Initialize on startup
 loadPersistentFile();
 
-if (memorySettings.cloudinaryCloudName) {
+if (memorySettings.cloudinaryCloudName && memorySettings.cloudinaryCloudName !== 'test-portfolio-cloud') {
   CloudinaryService.setCloudName(memorySettings.cloudinaryCloudName);
 }
 
@@ -385,6 +385,14 @@ export const DataStore = {
         await CloudinaryService.deleteAsset(projToDelete.cloudinaryPublicId, 'video');
       } catch (e) {
         console.warn('[DataStore] Cloudinary asset delete warning:', e.message);
+      }
+    }
+    if (projToDelete && projToDelete.thumbnailPublicId) {
+      try {
+        console.log(`[DataStore] Deleting Cloudinary thumbnail asset: ${projToDelete.thumbnailPublicId}`);
+        await CloudinaryService.deleteAsset(projToDelete.thumbnailPublicId, 'image');
+      } catch (e) {
+        console.warn('[DataStore] Cloudinary thumbnail delete warning:', e.message);
       }
     }
 

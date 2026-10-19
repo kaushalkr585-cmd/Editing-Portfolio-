@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, AlertCircle, Loader2, Film, Plus } from 'lucide-react';
+import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, RotateCcw, AlertCircle, Loader2, Film, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
+import { getOptimizedVideoUrl } from '../../utils/videoUtils';
+import { apiUrl } from '../../utils/api';
 
 export const FeaturedShowreel = ({
   videoUrl = '',
@@ -16,7 +18,7 @@ export const FeaturedShowreel = ({
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (!token) return;
-    fetch('/api/auth/me', {
+    fetch(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -31,7 +33,8 @@ export const FeaturedShowreel = ({
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -39,12 +42,13 @@ export const FeaturedShowreel = ({
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef(null);
+  const waitingTimeoutRef = useRef(null);
 
   // If no videoUrl prop provided, check settings and featured projects from backend
   useEffect(() => {
     if (!videoUrl) {
       // 1. Check site settings for showreelUrl
-      fetch('/api/settings')
+      fetch(apiUrl('/api/settings'))
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.data?.showreelUrl) {
@@ -52,7 +56,7 @@ export const FeaturedShowreel = ({
             if (data.data.showreelPoster) setActivePosterUrl(data.data.showreelPoster);
           } else {
             // 2. Otherwise check for any featured project
-            fetch('/api/projects?featured=true')
+            fetch(apiUrl('/api/projects?featured=true'))
               .then((r) => r.json())
               .then((pData) => {
                 if (pData.success && pData.data && pData.data.length > 0) {
@@ -79,6 +83,12 @@ export const FeaturedShowreel = ({
     } else {
       setHasStarted(true);
       setIsLoading(true);
+      // Ensure intentional play enables sound
+      if (videoRef.current.muted || isMuted) {
+        videoRef.current.muted = false;
+        videoRef.current.volume = volume > 0 ? volume : 1;
+        setIsMuted(false);
+      }
       videoRef.current
         .play()
         .then(() => {
@@ -86,19 +96,53 @@ export const FeaturedShowreel = ({
           setIsLoading(false);
         })
         .catch((err) => {
-          console.warn('Playback error:', err);
-          setIsLoading(false);
-          setHasError(true);
+          if (err.name === 'NotAllowedError') {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current
+              .play()
+              .then(() => {
+                setIsPlaying(true);
+                setIsLoading(false);
+              })
+              .catch(() => setIsLoading(false));
+          } else {
+            console.warn('Playback error:', err);
+            setIsLoading(false);
+            setHasError(true);
+          }
         });
     }
   };
 
   const toggleMute = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
-    const nextMuted = !isMuted;
-    videoRef.current.muted = nextMuted;
-    setIsMuted(nextMuted);
+    if (isMuted || volume === 0) {
+      const restoreVol = volume > 0 ? volume : 0.8;
+      videoRef.current.muted = false;
+      videoRef.current.volume = restoreVol;
+      setIsMuted(false);
+      setVolume(restoreVol);
+    } else {
+      videoRef.current.muted = true;
+      setIsMuted(true);
+    }
+  };
+
+  const handleVolumeChange = (newVol) => {
+    const vol = Math.max(0, Math.min(1, newVol));
+    setVolume(vol);
+    if (videoRef.current) {
+      videoRef.current.volume = vol;
+      if (vol === 0) {
+        videoRef.current.muted = true;
+        setIsMuted(true);
+      } else {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+      }
+    }
   };
 
   const toggleFullscreen = (e) => {
@@ -198,16 +242,23 @@ export const FeaturedShowreel = ({
 
               <video
                 ref={videoRef}
-                src={activeVideoUrl}
+                src={getOptimizedVideoUrl(activeVideoUrl)}
                 poster={activePosterUrl}
-                preload="none"
+                preload="metadata"
                 muted={isMuted}
                 playsInline
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
-                onWaiting={() => setIsLoading(true)}
-                onPlaying={() => setIsLoading(false)}
+                onWaiting={() => {
+                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+                  waitingTimeoutRef.current = setTimeout(() => setIsLoading(true), 400);
+                }}
+                onPlaying={() => {
+                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+                  setIsLoading(false);
+                }}
                 onError={() => {
+                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
                   setIsLoading(false);
                   setHasError(true);
                 }}
@@ -272,14 +323,34 @@ export const FeaturedShowreel = ({
                       {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white" />}
                     </button>
 
-                    <button
-                      onClick={toggleMute}
-                      className="p-2 rounded-full hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs text-[#BBCCD7]"
-                      aria-label={isMuted ? 'Unmute' : 'Mute'}
-                    >
-                      {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5" />}
-                      <span className="hidden sm:inline">{isMuted ? 'Unmute' : 'Mute'}</span>
-                    </button>
+                    {/* Volume Controls */}
+                    <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full border border-white/5">
+                      <button
+                        type="button"
+                        onClick={toggleMute}
+                        className="text-white hover:text-[#B600A8] transition-colors"
+                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isMuted || volume === 0 ? (
+                          <VolumeX className="w-4 h-4 text-red-400" />
+                        ) : volume < 0.5 ? (
+                          <Volume1 className="w-4 h-4 text-white" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-white" />
+                        )}
+                      </button>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        className="w-14 sm:w-20 h-1.5 accent-[#B600A8] bg-white/20 rounded-lg cursor-pointer"
+                        aria-label="Volume slider"
+                      />
+                    </div>
 
                     <span className="text-xs font-mono text-[#A6A6A6]">
                       {videoRef.current ? formatTime(videoRef.current.currentTime) : '0:00'} / {formatTime(duration)}

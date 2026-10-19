@@ -120,6 +120,7 @@ router.post('/', requireAdminAuth, async (req, res) => {
       description: description ? description.trim() : '',
       videoUrl: finalVideoUrl || '',
       thumbnailUrl: finalThumbnail || '',
+      thumbnailPublicId: req.body.thumbnailPublicId ? req.body.thumbnailPublicId.trim() : '',
       cloudinaryPublicId: cloudinaryPublicId ? cloudinaryPublicId.trim() : '',
       duration: duration || '0:30',
       aspectRatio: aspectRatio || '16:9',
@@ -156,6 +157,20 @@ router.put('/:id', requireAdminAuth, async (req, res) => {
       );
       if (!updateData.videoUrl) updateData.videoUrl = urls.videoUrl;
       if (!updateData.thumbnailUrl) updateData.thumbnailUrl = urls.thumbnailUrl;
+    }
+
+    const existing = await DataStore.getProjectByIdOrSlug(req.params.id);
+    if (
+      existing &&
+      existing.thumbnailPublicId &&
+      updateData.thumbnailPublicId &&
+      existing.thumbnailPublicId !== updateData.thumbnailPublicId
+    ) {
+      try {
+        await CloudinaryService.deleteAsset(existing.thumbnailPublicId, 'image');
+      } catch (e) {
+        console.warn('[Cloudinary] Could not remove old thumbnail asset:', e.message);
+      }
     }
 
     if (typeof updateData.tags === 'string') {

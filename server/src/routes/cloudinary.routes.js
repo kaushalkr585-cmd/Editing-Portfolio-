@@ -28,6 +28,31 @@ router.post('/cloud-name', requireAdminAuth, async (req, res) => {
     CloudinaryService.setCloudName(trimmed);
     await DataStore.updateSettings({ cloudinaryCloudName: trimmed });
 
+    // Persist to .env and server/.env (safeguard: do not persist test- placeholders)
+    if (!trimmed.startsWith('test-')) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envPaths = [
+          path.resolve(process.cwd(), 'server/.env'),
+          path.resolve(process.cwd(), '.env'),
+        ];
+      for (const p of envPaths) {
+        if (fs.existsSync(p)) {
+          let content = fs.readFileSync(p, 'utf-8');
+          if (content.includes('CLOUDINARY_CLOUD_NAME=')) {
+            content = content.replace(/CLOUDINARY_CLOUD_NAME=.*(\r?\n|$)/, `CLOUDINARY_CLOUD_NAME=${trimmed}$1`);
+          } else {
+            content += `\nCLOUDINARY_CLOUD_NAME=${trimmed}\n`;
+          }
+          fs.writeFileSync(p, content, 'utf-8');
+        }
+      }
+      } catch (e) {
+        console.warn('[Cloudinary] Could not write to .env:', e.message);
+      }
+    }
+
     res.json({
       success: true,
       message: 'Cloudinary Cloud Name updated successfully',
