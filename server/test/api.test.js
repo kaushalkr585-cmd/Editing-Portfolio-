@@ -175,6 +175,75 @@ async function runTests() {
     assert.strictEqual(data.user.role, 'admin');
   });
 
+  // 7b. Single-User Policy & Session Invalidation
+  await test('POST /api/auth/setup blocks registering a secondary administrator with 403', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'secondaryadmin',
+        email: 'secondary@portfolio.com',
+        password: 'AnotherPassword123!',
+      }),
+    });
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+    assert.ok(data.message.includes('Only one admin user is allowed'));
+  });
+
+  await test('POST /api/auth/login blocks unauthorized user from logging in with 403', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: 'intruder',
+        password: 'WrongPassword!',
+      }),
+    });
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+    assert.ok(data.message.includes('Only the single authorized portfolio administrator is permitted'));
+  });
+
+  await test('Single active session: second login invalidates previous session token', async () => {
+    const oldToken = adminToken;
+
+    // Perform a second login as the primary admin
+    const loginRes2 = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: 'kaushalkumar',
+        password: 'SecureAdminPassword2026!',
+      }),
+    });
+    const loginData2 = await loginRes2.json();
+    assert.strictEqual(loginRes2.status, 200);
+    const newToken = loginData2.token;
+    assert.ok(newToken);
+    assert.notStrictEqual(oldToken, newToken);
+
+    // Using the old token must now fail with 401
+    const oldRes = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${oldToken}` },
+    });
+    assert.strictEqual(oldRes.status, 401);
+    const oldData = await oldRes.json();
+    assert.ok(oldData.message.includes('Session terminated') || oldData.message.includes('Only one active login session'));
+
+    // Using the new token must succeed
+    const newRes = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${newToken}` },
+    });
+    assert.strictEqual(newRes.status, 200);
+
+    // Update adminToken for downstream CRUD tests
+    adminToken = newToken;
+  });
+
+
   // 8. Admin Category CRUD
   let createdCatId = '';
   await test('POST /api/categories creates category with admin auth', async () => {

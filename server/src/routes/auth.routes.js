@@ -1,5 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { DataStore } from '../services/dataStore.js';
 import { requireAdminAuth } from '../middleware/auth.middleware.js';
 
@@ -22,7 +23,8 @@ router.get('/status', async (req, res) => {
 });
 
 /**
- * Initial setup: Create first admin account if none exists
+ * Initial setup: Create first and only admin account
+ * Enforces strict single-user policy
  */
 router.post('/setup', async (req, res) => {
   try {
@@ -30,7 +32,7 @@ router.post('/setup', async (req, res) => {
     if (hasAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Admin account has already been initialized. Please log in.',
+        message: 'Registration closed: Only one admin user is allowed. Administrator account has already been initialized.',
       });
     }
 
@@ -50,10 +52,12 @@ router.post('/setup', async (req, res) => {
     }
 
     const created = await DataStore.createAdminUser({ username, email, password });
+    const sessionId = crypto.randomUUID();
+    await DataStore.updateUserSession(created.id, sessionId);
     
     // Auto-login with token
     const token = jwt.sign(
-      { id: created.id, username: created.username, email: created.email, role: 'admin' },
+      { id: created.id, username: created.username, email: created.email, role: 'admin', sessionId },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -70,7 +74,7 @@ router.post('/setup', async (req, res) => {
 });
 
 /**
- * Admin login
+ * Admin login: strictly permits only the single authorized admin user
  */
 router.post('/login', async (req, res) => {
   try {
@@ -82,15 +86,29 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const user = await DataStore.findUserByEmailOrUsername(identifier);
-    if (!user) {
+    // 1. Verify primary admin exists
+    const primaryAdmin = await DataStore.getPrimaryAdminUser();
+    if (!primaryAdmin) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found.',
+        message: 'No administrator registered yet. Please run initial setup.',
       });
     }
 
-    const isMatch = await user.comparePassword(password);
+    // 2. Strict authorization: verify identifier matches the single authorized admin
+    const ident = identifier.trim().toLowerCase();
+    const isOwner =
+      primaryAdmin.username.toLowerCase() === ident ||
+      primaryAdmin.email.toLowerCase() === ident;
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access restricted: Only the single authorized portfolio administrator is permitted to log in.',
+      });
+    }
+
+    const isMatch = await primaryAdmin.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -98,8 +116,18 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // 3. Issue new active session ID (invalidates any concurrent/old session)
+    const sessionId = crypto.randomUUID();
+    await DataStore.updateUserSession(primaryAdmin._id || primaryAdmin.id, sessionId);
+
     const token = jwt.sign(
-      { id: user._id || user.id, username: user.username, email: user.email, role: user.role || 'admin' },
+      {
+        id: primaryAdmin._id || primaryAdmin.id,
+        username: primaryAdmin.username,
+        email: primaryAdmin.email,
+        role: primaryAdmin.role || 'admin',
+        sessionId,
+      },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -109,10 +137,10 @@ router.post('/login', async (req, res) => {
       message: 'Logged in successfully.',
       token,
       user: {
-        id: user._id || user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role || 'admin',
+        id: primaryAdmin._id || primaryAdmin.id,
+        username: primaryAdmin.username,
+        email: primaryAdmin.email,
+        role: primaryAdmin.role || 'admin',
       },
     });
   } catch (error) {

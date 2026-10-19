@@ -455,7 +455,7 @@ export const DataStore = {
     return null;
   },
 
-  // Admin Users
+  // Admin Users (Strict Single-User Enforcement)
   hasAdminUser: async () => {
     if (getDbStatus()) {
       try {
@@ -468,7 +468,42 @@ export const DataStore = {
     return memoryUsers.length > 0;
   },
 
+  getPrimaryAdminUser: async () => {
+    if (getDbStatus()) {
+      try {
+        const user = await User.findOne();
+        if (user) return user;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB getPrimaryAdminUser error:', err.message);
+      }
+    }
+    return memoryUsers[0] || null;
+  },
+
+  updateUserSession: async (userId, sessionId) => {
+    if (getDbStatus()) {
+      try {
+        await User.findByIdAndUpdate(userId, { activeSessionId: sessionId });
+        return true;
+      } catch (err) {
+        console.warn('[DataStore] MongoDB updateUserSession error:', err.message);
+      }
+    }
+    const u = memoryUsers.find(u => u._id === userId || u.id === userId);
+    if (u) {
+      u.activeSessionId = sessionId;
+      savePersistentFile();
+      return true;
+    }
+    return false;
+  },
+
   createAdminUser: async ({ username, email, password }) => {
+    const alreadyExists = await DataStore.hasAdminUser();
+    if (alreadyExists) {
+      throw new Error('Security policy violation: Only one admin user is permitted to exist.');
+    }
+
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -487,6 +522,7 @@ export const DataStore = {
       email,
       password: passwordHash,
       role: 'admin',
+      activeSessionId: null,
       comparePassword: async (pwd) => bcrypt.compare(pwd, passwordHash),
     };
     memoryUsers.push(newUser);

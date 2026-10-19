@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
       enum: ['admin'],
       default: 'admin',
     },
+    activeSessionId: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
