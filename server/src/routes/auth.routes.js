@@ -16,6 +16,7 @@ router.get('/status', async (req, res) => {
     res.json({
       success: true,
       initialized: hasAdmin,
+      allowSignup: !hasAdmin,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -24,10 +25,18 @@ router.get('/status', async (req, res) => {
 
 /**
  * Sign Up / Registration Handler
- * Creates an admin account, issues active session token, and logs in immediately
+ * Strictly permits only ONE user account across the entire platform.
  */
 const handleSignup = async (req, res) => {
   try {
+    const hasAdmin = await DataStore.hasAdminUser();
+    if (hasAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Registration is closed. This portfolio allows strictly one admin user account.',
+      });
+    }
+
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({

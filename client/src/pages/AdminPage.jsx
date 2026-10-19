@@ -139,7 +139,16 @@ export const AdminPage = () => {
     try {
       const res = await fetch(apiUrl('/api/auth/status'));
       const data = await res.json();
-      setAuthStatus({ loading: false, initialized: data.initialized });
+      const allowSignup = Boolean(data.allowSignup);
+      setAuthStatus({
+        loading: false,
+        initialized: data.initialized,
+        allowSignup,
+      });
+
+      if (!allowSignup) {
+        setAuthMode('login');
+      }
 
       if (token) {
         const meRes = await fetch(apiUrl('/api/auth/me'), {
@@ -875,39 +884,48 @@ export const AdminPage = () => {
               : 'Enter your credentials to manage categories, upload videos, and publish to your portfolio.'}
           </p>
 
-          {/* Mode Switcher Tabs */}
-          <div className="flex bg-[#1A1A1A] p-1 rounded-2xl border border-white/10 mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('login');
-                setAuthError('');
-              }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                authMode === 'login'
-                  ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
-                  : 'text-[#A6A6A6] hover:text-white'
-              }`}
-            >
-              <Key className="w-3.5 h-3.5" />
-              Log In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('signup');
-                setAuthError('');
-              }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                authMode === 'signup'
-                  ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
-                  : 'text-[#A6A6A6] hover:text-white'
-              }`}
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              Sign Up
-            </button>
-          </div>
+          {/* Mode Switcher Tabs - Only visible if single admin has not been created yet */}
+          {authStatus.allowSignup ? (
+            <div className="flex bg-[#1A1A1A] p-1 rounded-2xl border border-white/10 mb-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthError('');
+                }}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                  authMode === 'login'
+                    ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
+                    : 'text-[#A6A6A6] hover:text-white'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                Log In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup');
+                  setAuthError('');
+                }}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                  authMode === 'signup'
+                    ? 'bg-gradient-to-r from-[#B600A8] to-[#BE4C00] text-white shadow-md'
+                    : 'text-[#A6A6A6] hover:text-white'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                First-Time Setup
+              </button>
+            </div>
+          ) : (
+            <div className="mb-6 p-2.5 rounded-2xl bg-white/[0.03] border border-white/5 text-center">
+              <span className="text-[11px] font-mono text-[#BBCCD7] flex items-center justify-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-[#B600A8]" />
+                Single-User Protected Studio Access
+              </span>
+            </div>
+          )}
 
           {authError && (
             <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
