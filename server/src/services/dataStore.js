@@ -617,6 +617,16 @@ export const DataStore = {
             techUpdate.thumbnailUrl = `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`;
             neededTechnicalUpdate = true;
           }
+          if (!existing.duration || existing.duration === '0:30') {
+            const details = await CloudinaryService.getVideoDetails(publicId);
+            if (details && details.duration) {
+              const sec = Math.round(details.duration);
+              const m = Math.floor(sec / 60);
+              const s = sec % 60;
+              techUpdate.duration = `${m}:${s < 10 ? '0' : ''}${s}`;
+              neededTechnicalUpdate = true;
+            }
+          }
 
           if (neededTechnicalUpdate) {
             if (getDbStatus() && dbDoc) {
@@ -643,6 +653,15 @@ export const DataStore = {
             ? (res.width === res.height ? '1:1' : (res.height > res.width ? '9:16' : '16:9'))
             : '16:9';
 
+          let assetDuration = '';
+          const details = await CloudinaryService.getVideoDetails(publicId);
+          if (details && details.duration) {
+            const sec = Math.round(details.duration);
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            assetDuration = `${m}:${s < 10 ? '0' : ''}${s}`;
+          }
+
           const newProj = {
             id: `proj-${rawName}`,
             title: cleanName || 'New Video Edit',
@@ -654,7 +673,7 @@ export const DataStore = {
             thumbnailUrl: `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`,
             cloudinaryPublicId: publicId,
             aspectRatio: derivedRatio,
-            duration: res.duration ? `${Math.floor(res.duration)}s` : '0:30',
+            duration: assetDuration,
             featured: false,
             published: true,
             client: '',

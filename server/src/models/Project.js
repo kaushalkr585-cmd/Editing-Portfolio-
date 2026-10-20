@@ -53,7 +53,7 @@ const projectSchema = new mongoose.Schema(
     },
     duration: {
       type: String,
-      default: '0:30',
+      default: '',
       trim: true,
     },
     aspectRatio: {

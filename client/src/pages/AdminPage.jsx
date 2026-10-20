@@ -33,7 +33,7 @@ import {
 import { Link } from 'react-router-dom';
 import { VideoCoverPicker } from '../components/common/VideoCoverPicker';
 import { apiUrl } from '../utils/api';
-import { getOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../utils/videoUtils';
+import { getOptimizedVideoUrl, getOptimizedThumbnailUrl, formatDuration } from '../utils/videoUtils';
 
 export const AdminPage = () => {
   const [authStatus, setAuthStatus] = useState({ loading: true, initialized: true });
@@ -476,6 +476,25 @@ export const AdminPage = () => {
     const localUrl = URL.createObjectURL(file);
     setPreviewVideoUrl(localUrl);
 
+    // Auto-detect duration and ratio immediately from file metadata
+    const tempVid = document.createElement('video');
+    tempVid.preload = 'metadata';
+    tempVid.onloadedmetadata = () => {
+      if (tempVid.duration && !isNaN(tempVid.duration)) {
+        setUploadForm((prev) => ({ ...prev, duration: formatDuration(tempVid.duration) }));
+      }
+      if (tempVid.videoWidth && tempVid.videoHeight) {
+        const ratio = tempVid.videoWidth / tempVid.videoHeight;
+        let detected = '16:9';
+        if (ratio < 0.7) detected = '9:16';
+        else if (ratio >= 0.7 && ratio < 0.9) detected = '4:5';
+        else if (ratio >= 0.9 && ratio < 1.15) detected = '1:1';
+        setUploadForm((prev) => ({ ...prev, aspectRatio: detected }));
+      }
+      URL.revokeObjectURL(tempVid.src);
+    };
+    tempVid.src = URL.createObjectURL(file);
+
     // Auto-fill title from filename if title is currently empty
     const cleanTitle = file.name
       .replace(/\.[^/.]+$/, '')
@@ -491,11 +510,8 @@ export const AdminPage = () => {
   const handleVideoMetadataLoaded = (e) => {
     const vid = e.target;
     // Auto-detect duration
-    if (vid.duration) {
-      const m = Math.floor(vid.duration / 60);
-      const s = Math.floor(vid.duration % 60);
-      const durationStr = `${m}:${s < 10 ? '0' : ''}${s}`;
-      setUploadForm((prev) => ({ ...prev, duration: durationStr }));
+    if (vid.duration && !isNaN(vid.duration)) {
+      setUploadForm((prev) => ({ ...prev, duration: formatDuration(vid.duration) }));
     }
 
     // Auto-detect aspect ratio
@@ -528,7 +544,7 @@ export const AdminPage = () => {
       description: '',
       tags: '',
       aspectRatio: '16:9',
-      duration: '0:30',
+      duration: '',
       featured: false,
       published: true,
     });
@@ -666,6 +682,11 @@ export const AdminPage = () => {
         finalThumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_${soSec},q_auto,f_auto,w_1200/${publicId}.jpg`;
       }
 
+      const cloudinaryDuration = cloudinaryResult.duration
+        ? formatDuration(cloudinaryResult.duration)
+        : '';
+      const finalDuration = uploadForm.duration ? formatDuration(uploadForm.duration) : cloudinaryDuration;
+
       // 4. Create project record in backend database
       const projectPayload = {
         title: uploadForm.title.trim(),
@@ -676,7 +697,7 @@ export const AdminPage = () => {
         thumbnailUrl: finalThumbnailUrl,
         thumbnailPublicId: finalThumbnailPublicId,
         cloudinaryPublicId: publicId,
-        duration: uploadForm.duration || `${Math.floor(cloudinaryResult.duration || 30)}s`,
+        duration: finalDuration,
         aspectRatio: uploadForm.aspectRatio,
         featured: uploadForm.featured,
         published: uploadForm.published,
@@ -1389,7 +1410,7 @@ export const AdminPage = () => {
                               </span>
                             </td>
                             <td className="py-3 px-4 font-mono text-[#A6A6A6]">{proj.aspectRatio || '16:9'}</td>
-                            <td className="py-3 px-4 font-mono text-[#A6A6A6]">{proj.duration || '0:30'}</td>
+                            <td className="py-3 px-4 font-mono text-[#A6A6A6]">{formatDuration(proj.duration) || '--'}</td>
                             <td className="py-3 px-4 text-[#8E8E8E]">
                               {proj.createdAt ? new Date(proj.createdAt).toLocaleDateString() : 'Recent'}
                             </td>

@@ -171,3 +171,33 @@ export const getDeviceOptimizedVideoUrl = (url, isPreview = false) => {
     codec: 'vc_h264',
   });
 };
+
+/**
+ * Formats seconds or duration strings into standardized "m:ss" format.
+ * Examples:
+ *   9 -> "0:09"
+ *   30 -> "0:30"
+ *   65 -> "1:05"
+ *   125 -> "2:05"
+ *   "9s" -> "0:09"
+ *   "0:9" -> "0:09"
+ */
+export const formatDuration = (val) => {
+  if (val === undefined || val === null || val === '') return '';
+
+  // If already mm:ss or m:ss (e.g. "0:09", "1:05", "0:9")
+  if (typeof val === 'string' && /^\d+:\d{1,2}$/.test(val.trim())) {
+    const [m, s] = val.trim().split(':').map(Number);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  // Parse numeric seconds from number or string like "9s", "30", "9.066667"
+  const rawNum = typeof val === 'number' ? val : parseFloat(String(val).replace(/s$/i, '').trim());
+  if (isNaN(rawNum) || rawNum < 0) return '';
+
+  const totalSeconds = Math.round(rawNum);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+

@@ -3,7 +3,7 @@ import { Search, Play, Clock, Eye, AlertCircle, Film, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../common/FadeIn';
 import { ProjectModal } from './ProjectModal';
-import { getOptimizedVideoUrl, getOptimizedThumbnailUrl, isTouchDevice } from '../../utils/videoUtils';
+import { getOptimizedVideoUrl, getOptimizedThumbnailUrl, isTouchDevice, formatDuration } from '../../utils/videoUtils';
 import { apiUrl } from '../../utils/api';
 
 /**
@@ -144,7 +144,7 @@ const PortfolioCard = ({ project, isHovered, onHoverStart, onHoverEnd, onClick }
           <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none">
             <span className="text-[10px] font-mono bg-black/80 backdrop-blur-md text-white/90 px-2 py-0.5 rounded flex items-center gap-1 border border-white/10 shadow-sm">
               <Clock className="w-3 h-3 text-[#B600A8]" />
-              {project.duration}
+              {formatDuration(project.duration)}
             </span>
           </div>
         )}

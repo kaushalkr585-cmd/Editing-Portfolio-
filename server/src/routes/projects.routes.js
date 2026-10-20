@@ -134,6 +134,25 @@ router.post('/', requireAdminAuth, async (req, res) => {
       });
     }
 
+    let cleanDuration = duration ? String(duration).trim() : '';
+    if (cleanDuration && !cleanDuration.includes(':') && !isNaN(parseFloat(cleanDuration))) {
+      const sec = Math.round(parseFloat(cleanDuration));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      cleanDuration = `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // If duration is missing and we have a Cloudinary asset ID, retrieve real duration from Cloudinary
+    if (!cleanDuration && cloudinaryPublicId) {
+      const details = await CloudinaryService.getVideoDetails(cloudinaryPublicId.trim());
+      if (details && details.duration) {
+        const sec = Math.round(details.duration);
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        cleanDuration = `${m}:${s < 10 ? '0' : ''}${s}`;
+      }
+    }
+
     const created = await DataStore.createProject({
       title: title.trim(),
       category: resolvedCategory || 'General',
@@ -143,7 +162,7 @@ router.post('/', requireAdminAuth, async (req, res) => {
       thumbnailUrl: finalThumbnail || '',
       thumbnailPublicId: req.body.thumbnailPublicId ? req.body.thumbnailPublicId.trim() : '',
       cloudinaryPublicId: cloudinaryPublicId ? cloudinaryPublicId.trim() : '',
-      duration: duration || '0:30',
+      duration: cleanDuration || '',
       aspectRatio: aspectRatio || '16:9',
       featured: Boolean(featured),
       published: published !== undefined ? Boolean(published) : true,

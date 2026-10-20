@@ -250,4 +250,32 @@ export const CloudinaryService = {
       return { success: false, message: err.message, resources: [] };
     }
   },
+
+  /**
+   * Fetch precise video technical metadata including real duration from Cloudinary
+   */
+  getVideoDetails: async (publicId) => {
+    const aKey = getApiKey();
+    const aSecret = getApiSecret();
+    const cName = getCloudName();
+    if (!aKey || !aSecret || !cName || !publicId) return null;
+
+    try {
+      initCloudinary(cName);
+      const details = await cloudinary.api.resource(publicId, {
+        resource_type: 'video',
+        media_metadata: true,
+      });
+
+      return {
+        duration: typeof details.duration === 'number' ? details.duration : null,
+        width: details.width,
+        height: details.height,
+        format: details.format,
+      };
+    } catch (err) {
+      console.warn(`[Cloudinary] getVideoDetails failed for ${publicId}:`, err.message);
+      return null;
+    }
+  },
 };

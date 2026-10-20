@@ -20,7 +20,8 @@ import {
 import {
   getDeviceOptimizedVideoUrl,
   getOptimizedThumbnailUrl,
-  getFallbackVideoUrl
+  getFallbackVideoUrl,
+  formatDuration
 } from '../../utils/videoUtils';
 
 export const ProjectModal = ({ project, onClose, onInquire }) => {
@@ -689,7 +690,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
             <div>
               <span className="text-[#6E6E6E] block mb-1">Duration</span>
               <span className="text-white font-medium flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#BBCCD7]" /> {project.duration || formatTime(duration)}
+                <Clock className="w-3.5 h-3.5 text-[#BBCCD7]" /> {formatDuration(project.duration) || formatTime(duration)}
               </span>
             </div>
             <div>
