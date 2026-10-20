@@ -46,6 +46,27 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serverless lazy initialization guard
+let initPromise = null;
+const ensureInit = () => {
+  if (!initPromise) {
+    initPromise = (async () => {
+      try {
+        await connectDB();
+        await initializeDataStore();
+      } catch (err) {
+        console.error('[DataStore Init Error]', err);
+      }
+    })();
+  }
+  return initPromise;
+};
+
+app.use(async (req, res, next) => {
+  await ensureInit();
+  next();
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectsRoutes);
@@ -112,8 +133,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 const startServer = async () => {
-  await connectDB();
-  await initializeDataStore();
+  await ensureInit();
 
   app.listen(PORT, () => {
     console.log(`===============================================`);
@@ -124,4 +144,8 @@ const startServer = async () => {
   });
 };
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

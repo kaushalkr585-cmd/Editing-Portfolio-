@@ -26,6 +26,11 @@ const autoEncodePassword = (uri) => {
 };
 
 export const connectDB = async () => {
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    isConnected = true;
+    return true;
+  }
+
   const rawUri = process.env.MONGODB_URI;
 
   if (!rawUri) {
