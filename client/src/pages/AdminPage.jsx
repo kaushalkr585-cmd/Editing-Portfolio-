@@ -2445,6 +2445,8 @@ export const AdminPage = () => {
               controls
               autoPlay
               playsInline
+              webkit-playsinline="true"
+              x5-playsinline="true"
               preload="metadata"
               className="w-full aspect-video object-contain bg-black"
             />

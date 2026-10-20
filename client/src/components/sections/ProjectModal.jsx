@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   Play,
@@ -17,7 +17,11 @@ import {
   Sparkles,
   Film
 } from 'lucide-react';
-import { getDeviceOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../../utils/videoUtils';
+import {
+  getDeviceOptimizedVideoUrl,
+  getOptimizedThumbnailUrl,
+  getFallbackVideoUrl
+} from '../../utils/videoUtils';
 
 export const ProjectModal = ({ project, onClose, onInquire }) => {
   const videoRef = useRef(null);
@@ -25,9 +29,10 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
   const progressTrackRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const waitingTimerRef = useRef(null);
+  const hasFallbackBeenAttemptedRef = useRef(false);
 
   // Sound & Playback State - UNMUTED BY DEFAULT for intentional user click
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(() => {
@@ -39,9 +44,36 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('Unable to stream video from media delivery service.');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+
+  // Video delivery URLs (stably memoized to prevent mid-stream reloads or resolution flips)
+  const primaryVideoSrc = useMemo(() => {
+    return getDeviceOptimizedVideoUrl(project?.videoUrl, false);
+  }, [project?.videoUrl, project?._id, project?.id]);
+
+  const fallbackVideoSrc = useMemo(() => {
+    return getFallbackVideoUrl(project?.videoUrl);
+  }, [project?.videoUrl]);
+
+  const optimizedPoster = useMemo(() => {
+    return getOptimizedThumbnailUrl(project?.thumbnailUrl, { width: 1200, quality: 'q_auto' });
+  }, [project?.thumbnailUrl]);
+
+  const [activeVideoSrc, setActiveVideoSrc] = useState(primaryVideoSrc);
+
+  // Reset state when project changes
+  useEffect(() => {
+    setActiveVideoSrc(primaryVideoSrc);
+    hasFallbackBeenAttemptedRef.current = false;
+    setHasError(false);
+    setIsLoading(true);
+    setHasStarted(false);
+    setIsPlaying(false);
+    setAutoplayBlocked(false);
+  }, [primaryVideoSrc]);
 
   // Clean resource release helper
   const releaseVideoResources = useCallback(() => {
@@ -126,7 +158,9 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
           setIsLoading(false);
         })
         .catch((err) => {
-          console.warn('[ProjectModal] Playback error:', err);
+          if (err.name !== 'AbortError') {
+            console.warn('[ProjectModal] Playback toggle error:', err);
+          }
           setIsLoading(false);
         });
     }
@@ -151,7 +185,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
           setAutoplayBlocked(false);
         })
         .catch((err) => {
-          // If browser strictly blocks unmuted autoplay without second interaction
+          // If browser policy strictly blocks unmuted autoplay without second interaction
           if (err.name === 'NotAllowedError') {
             console.info('[ProjectModal] Browser policy blocked unmuted autoplay; starting muted with unmute banner.');
             video.muted = true;
@@ -165,7 +199,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
                 setIsLoading(false);
               })
               .catch(() => setIsLoading(false));
-          } else {
+          } else if (err.name !== 'AbortError') {
             console.warn('[ProjectModal] Video load/play error:', err);
             setIsLoading(false);
           }
@@ -190,6 +224,39 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClose]);
 
+  // Fullscreen change listener across standard, WebKit (iOS/iPad/Safari), and vendor variants
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const fs = Boolean(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+      setIsFullscreen(fs);
+    };
+
+    const video = videoRef.current;
+    const handleWebkitBegin = () => setIsFullscreen(true);
+    const handleWebkitEnd = () => setIsFullscreen(false);
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    if (video) {
+      video.addEventListener('webkitbeginfullscreen', handleWebkitBegin);
+      video.addEventListener('webkitendfullscreen', handleWebkitEnd);
+    }
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      if (video) {
+        video.removeEventListener('webkitbeginfullscreen', handleWebkitBegin);
+        video.removeEventListener('webkitendfullscreen', handleWebkitEnd);
+      }
+    };
+  }, []);
+
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       const cur = videoRef.current.currentTime;
@@ -206,13 +273,15 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
     if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
     waitingTimerRef.current = setTimeout(() => {
       setIsLoading(true);
-    }, 250);
+    }, 300);
   };
 
   const handlePlaying = () => {
     if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
     setIsLoading(false);
+    setIsPlaying(true);
     setHasStarted(true);
+    setHasError(false);
   };
 
   const handleCanPlay = () => {
@@ -224,6 +293,57 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
       setIsLoading(false);
+    }
+  };
+
+  // Comprehensive, intelligent error recovery and diagnostics
+  const handleVideoError = () => {
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+    const mediaErr = videoRef.current?.error;
+
+    // Code 1 = MEDIA_ERR_ABORTED: harmless abort when user pauses or switches source
+    if (mediaErr && mediaErr.code === 1) {
+      console.debug('[ProjectModal] Stream fetch aborted by user agent, ignoring.');
+      return;
+    }
+
+    const errorDetails = {
+      code: mediaErr?.code,
+      message: mediaErr?.message,
+      currentSrc: videoRef.current?.currentSrc,
+      readyState: videoRef.current?.readyState,
+      networkState: videoRef.current?.networkState,
+    };
+    console.warn('[ProjectModal] Video playback error caught:', errorDetails);
+
+    // If fallback is available and hasn't been tried yet, try the clean fallback stream
+    if (!hasFallbackBeenAttemptedRef.current && fallbackVideoSrc && fallbackVideoSrc !== activeVideoSrc) {
+      console.info('[ProjectModal] Attempting automatic fallback to universal direct stream...');
+      hasFallbackBeenAttemptedRef.current = true;
+      setActiveVideoSrc(fallbackVideoSrc);
+      if (videoRef.current) {
+        videoRef.current.src = fallbackVideoSrc;
+        videoRef.current.load();
+        videoRef.current.play().catch((playErr) => {
+          if (playErr.name !== 'AbortError') {
+            console.warn('[ProjectModal] Fallback play error:', playErr);
+          }
+        });
+      }
+      return;
+    }
+
+    setIsLoading(false);
+    setHasError(true);
+
+    if (mediaErr?.code === 2) {
+      setErrorMessage('Network connection lost while streaming video. Please check your internet connection.');
+    } else if (mediaErr?.code === 3) {
+      setErrorMessage('Video decoding error on this device. Tap retry to reload the compatibility stream.');
+    } else if (mediaErr?.code === 4) {
+      setErrorMessage('Video format is not supported or temporarily unavailable.');
+    } else {
+      setErrorMessage('Unable to stream video from media delivery service.');
     }
   };
 
@@ -241,18 +361,45 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
 
   const toggleFullscreen = (e) => {
     if (e) e.stopPropagation();
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const video = videoRef.current;
 
-    if (!document.fullscreenElement) {
-      containerRef.current
-        .requestFullscreen()
-        .then(() => setIsFullscreen(true))
-        .catch((err) => console.warn(err));
+    const isCurrentlyFullscreen = Boolean(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement ||
+      isFullscreen
+    );
+
+    if (!isCurrentlyFullscreen) {
+      // 1. Try standard container fullscreen first (Desktop / Android Chrome)
+      if (container && container.requestFullscreen) {
+        container
+          .requestFullscreen()
+          .then(() => setIsFullscreen(true))
+          .catch(() => {
+            // Fallback to video element (mobile Safari / iOS)
+            if (video && video.webkitEnterFullscreen) {
+              video.webkitEnterFullscreen();
+            } else if (video && video.requestFullscreen) {
+              video.requestFullscreen().catch(() => {});
+            }
+          });
+      } else if (container && container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+      } else if (video && video.webkitEnterFullscreen) {
+        // iOS Safari on iPhone strictly requires fullscreen directly on HTMLVideoElement
+        video.webkitEnterFullscreen();
+      }
     } else {
-      document
-        .exitFullscreen()
-        .then(() => setIsFullscreen(false))
-        .catch((err) => console.warn(err));
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      } else if (video && video.webkitExitFullscreen) {
+        video.webkitExitFullscreen();
+      }
     }
   };
 
@@ -288,9 +435,6 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
 
   if (!project) return null;
 
-  const optimizedVideoSrc = getDeviceOptimizedVideoUrl(project.videoUrl, false);
-  const optimizedPoster = getOptimizedThumbnailUrl(project.thumbnailUrl, { width: 1200, quality: 'q_auto' });
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto"
@@ -319,7 +463,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
           onClick={togglePlay}
         >
           {/* Aspect-constrained video wrapper */}
-          <div className={`${getAspectClass(project.aspectRatio)} relative flex items-center justify-center`}>
+          <div className={`${isFullscreen ? 'w-full h-full max-h-screen' : getAspectClass(project.aspectRatio)} relative flex items-center justify-center`}>
             {/* Poster fallback image prior to first frame playback */}
             {!hasStarted && optimizedPoster && (
               <img
@@ -331,10 +475,12 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
 
             <video
               ref={videoRef}
-              src={optimizedVideoSrc}
+              src={activeVideoSrc}
               poster={optimizedPoster}
               preload="metadata"
               playsInline
+              webkit-playsinline="true"
+              x5-playsinline="true"
               loop
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
@@ -342,11 +488,7 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
               onPlaying={handlePlaying}
               onCanPlay={handleCanPlay}
               onStalled={handleWaiting}
-              onError={() => {
-                if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
-                setIsLoading(false);
-                setHasError(true);
-              }}
+              onError={handleVideoError}
               className="w-full h-full object-contain"
             />
           </div>
@@ -386,18 +528,21 @@ export const ProjectModal = ({ project, onClose, onInquire }) => {
             <div className="absolute inset-0 z-30 bg-black/85 flex flex-col items-center justify-center p-6 text-center">
               <AlertCircle className="w-10 h-10 text-red-500 mb-2" />
               <p className="text-white font-medium">Video playback error</p>
-              <p className="text-xs text-[#A6A6A6] mt-1">Unable to stream video from media delivery service.</p>
+              <p className="text-xs text-[#A6A6A6] mt-1 max-w-sm">{errorMessage}</p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setHasError(false);
                   setIsLoading(true);
+                  hasFallbackBeenAttemptedRef.current = false;
+                  setActiveVideoSrc(primaryVideoSrc);
                   if (videoRef.current) {
+                    videoRef.current.src = primaryVideoSrc;
                     videoRef.current.load();
                     videoRef.current.play().catch(() => {});
                   }
                 }}
-                className="mt-4 px-4 py-1.5 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-1.5"
+                className="mt-4 px-4 py-1.5 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Playback
               </button>

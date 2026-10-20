@@ -269,6 +269,7 @@ export const VideoCoverPicker = ({
         crossOrigin="anonymous"
         muted
         playsInline
+        webkit-playsinline="true"
         preload="auto"
         onLoadedMetadata={handleLoadedMetadata}
         onSeeked={handleSeeked}

@@ -610,7 +610,7 @@ export const DataStore = {
           const techUpdate = {};
 
           if (!existing.videoUrl) {
-            techUpdate.videoUrl = `https://res.cloudinary.com/${cName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`;
+            techUpdate.videoUrl = `https://res.cloudinary.com/${cName}/video/upload/f_mp4,vc_h264,q_auto,w_1080,c_limit/${publicId}.mp4`;
             neededTechnicalUpdate = true;
           }
           if (!existing.thumbnailUrl) {
@@ -650,7 +650,7 @@ export const DataStore = {
             category: 'Other Projects',
             categoryId: 'cat-other',
             description: '',
-            videoUrl: `https://res.cloudinary.com/${cName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`,
+            videoUrl: `https://res.cloudinary.com/${cName}/video/upload/f_mp4,vc_h264,q_auto,w_1080,c_limit/${publicId}.mp4`,
             thumbnailUrl: `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`,
             cloudinaryPublicId: publicId,
             aspectRatio: derivedRatio,

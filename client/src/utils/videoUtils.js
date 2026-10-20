@@ -1,28 +1,36 @@
 /**
  * Video Delivery Optimization Utility for Cloudinary & HTML5 Media Playback
  * 
- * Implements Cloudinary Video Best Practices:
- * 1. Automatic format selection (f_auto) for modern browser container matching (WebM on Chrome, MP4 on Safari)
- * 2. Automatic quality compression (q_auto / q_auto:eco) for minimal buffering on mobile networks
- * 3. Video codec auto-selection (vc_auto) for hardware-accelerated playback
- * 4. Dimension clamping (w_1080 or w_720 with c_limit) to prevent mobile devices from decoding 4K streams
- * 5. Instant start & progressive byte-range streaming without full file downloads upfront
+ * Implements Mobile-First & Cross-Platform Video Standards:
+ * 1. Universally compatible H.264 video codec (vc_h264) in standard MP4 container (f_mp4).
+ *    Avoids VP9 (WebM) and HEVC (hvc1) decode failures on mobile WebKit / Android inline players.
+ * 2. Automatic adaptive quality compression (q_auto / q_auto:eco) for instantaneous playback.
+ * 3. Mobile resolution clamping (w_720 on mobile / w_1080 on desktop with c_limit).
+ * 4. Progressive byte-range streaming (206 Partial Content) with zero upfront full downloads.
  */
 
-const isTransformSegment = (segment) => {
-  if (!segment) return false;
+const KNOWN_TRANSFORM_KEYS = 'q|w|h|f|c|vc|so|eo|du|sp|e|b|br|fps|ac|fl|co|bg|pg|ar|g|z|y|x';
+const PARAM_REGEX = new RegExp(`^(${KNOWN_TRANSFORM_KEYS})_[a-zA-Z0-9.:_-]+$`);
+
+export const isTransformSegment = (segment) => {
+  if (!segment || typeof segment !== 'string') return false;
   // Version segment like v1729382901 is NOT a transformation
   if (/^v[0-9]+$/.test(segment)) return false;
-  // Known Cloudinary video/image transformation keys
-  return (
-    /^(q_|w_|h_|f_|c_|vc_|so_|eo_|du_|sp_|e_|b_|br_|fps_|ac_|[a-z]{1,3}_[a-z0-9]+)/.test(segment) ||
-    segment.includes(',')
-  );
+  // Segments containing folder paths or public IDs are not transformations
+  if (segment.includes('/')) return false;
+
+  // Multiple comma-separated transformations (e.g. f_auto,q_auto,w_720)
+  if (segment.includes(',')) {
+    const parts = segment.split(',');
+    return parts.length > 0 && parts.every((p) => PARAM_REGEX.test(p.trim()));
+  }
+
+  return PARAM_REGEX.test(segment.trim());
 };
 
 /**
- * Generates an optimized Cloudinary video delivery URL with automatic format and quality selection.
- * Cleans and replaces any legacy or hardcoded transform segments without losing folder structure or versioning.
+ * Generates an optimized Cloudinary video delivery URL with universally supported H.264 MP4 delivery.
+ * Strips any stale transform segments and injects mobile-compatible parameters.
  */
 export const getOptimizedVideoUrl = (url, options = {}) => {
   if (!url || typeof url !== 'string') return url || '';
@@ -33,8 +41,8 @@ export const getOptimizedVideoUrl = (url, options = {}) => {
   const {
     maxWidth = 1080,
     quality = 'q_auto',
-    format = 'f_auto',
-    codec = 'vc_auto',
+    format = 'f_mp4', // Guaranteed standard MP4 container for 100% mobile compatibility
+    codec = 'vc_h264', // Guaranteed H.264 Baseline/Main profile (hardware decoded everywhere)
     crop = 'c_limit',
   } = options;
 
@@ -59,6 +67,30 @@ export const getOptimizedVideoUrl = (url, options = {}) => {
   }
 
   return `${prefix}${transformStr}/${assetSegments.join('/')}`;
+};
+
+/**
+ * Generates a direct fallback video URL without resolution or codec constraints.
+ * Used when an aggressive transformation encounters CDN or decoding stalls on an older device.
+ */
+export const getFallbackVideoUrl = (url) => {
+  if (!url || typeof url !== 'string') return url || '';
+  if (!url.includes('res.cloudinary.com') || !url.includes('/video/upload/')) {
+    return url;
+  }
+
+  const parts = url.split('/video/upload/');
+  const prefix = parts[0] + '/video/upload/';
+  const remainder = parts[1];
+  const segments = remainder.split('/');
+
+  let assetSegments = segments;
+  if (isTransformSegment(segments[0])) {
+    assetSegments = segments.slice(1);
+  }
+
+  // Safe universal MP4 transcode without resizing
+  return `${prefix}f_mp4,vc_h264/${assetSegments.join('/')}`;
 };
 
 /**
@@ -109,12 +141,17 @@ export const isTouchDevice = () => {
 
 /**
  * Returns responsive video delivery parameters tailored for the user's screen width and network:
- * Mobile screens get 720p with q_auto:eco to start instantly and prevent buffering.
- * Desktop screens get 1080p with q_auto for crisp high-definition streaming.
+ * Mobile screens get 720p with q_auto:eco and H.264 to start instantly and prevent buffering.
+ * Desktop screens get 1080p with q_auto and H.264 for crisp high-definition streaming.
  */
 export const getDeviceOptimizedVideoUrl = (url, isPreview = false) => {
   if (typeof window === 'undefined') {
-    return getOptimizedVideoUrl(url, { maxWidth: isPreview ? 720 : 1080, quality: isPreview ? 'q_auto:eco' : 'q_auto' });
+    return getOptimizedVideoUrl(url, {
+      maxWidth: isPreview ? 720 : 1080,
+      quality: isPreview ? 'q_auto:eco' : 'q_auto',
+      format: 'f_mp4',
+      codec: 'vc_h264',
+    });
   }
 
   const isMobileScreen = window.innerWidth < 768;
@@ -122,11 +159,15 @@ export const getDeviceOptimizedVideoUrl = (url, isPreview = false) => {
     return getOptimizedVideoUrl(url, {
       maxWidth: 720,
       quality: 'q_auto:eco',
+      format: 'f_mp4',
+      codec: 'vc_h264',
     });
   }
 
   return getOptimizedVideoUrl(url, {
     maxWidth: 1080,
     quality: 'q_auto',
+    format: 'f_mp4',
+    codec: 'vc_h264',
   });
 };

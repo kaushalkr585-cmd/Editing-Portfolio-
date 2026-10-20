@@ -1,13 +1,28 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, RotateCcw, AlertCircle, Loader2, Film, Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { FadeIn } from '../common/FadeIn';
-import { getDeviceOptimizedVideoUrl, getOptimizedThumbnailUrl } from '../../utils/videoUtils';
-import { apiUrl } from '../../utils/api';
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import {
+  Play,
+  Pause,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Maximize,
+  RotateCcw,
+  AlertCircle,
+  Loader2,
+  Film,
+  Plus,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { FadeIn } from "../common/FadeIn";
+import {
+  getDeviceOptimizedVideoUrl,
+  getOptimizedThumbnailUrl,
+} from "../../utils/videoUtils";
+import { apiUrl } from "../../utils/api";
 
 export const FeaturedShowreel = ({
-  videoUrl = '',
-  posterUrl = '',
+  videoUrl = "",
+  posterUrl = "",
   title = "Kaushal Kumar — Director's Cut",
 }) => {
   const [activeVideoUrl, setActiveVideoUrl] = useState(videoUrl);
@@ -16,9 +31,9 @@ export const FeaturedShowreel = ({
 
   // Check admin session on mount
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
+    const token = localStorage.getItem("admin_token");
     if (!token) return;
-    fetch(apiUrl('/api/auth/me'), {
+    fetch(apiUrl("/api/auth/me"), {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -48,21 +63,22 @@ export const FeaturedShowreel = ({
   useEffect(() => {
     if (!videoUrl) {
       // 1. Check site settings for showreelUrl
-      fetch(apiUrl('/api/settings'))
+      fetch(apiUrl("/api/settings"))
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.data?.showreelUrl) {
             setActiveVideoUrl(data.data.showreelUrl);
-            if (data.data.showreelPoster) setActivePosterUrl(data.data.showreelPoster);
+            if (data.data.showreelPoster)
+              setActivePosterUrl(data.data.showreelPoster);
           } else {
             // 2. Otherwise check for any featured project
-            fetch(apiUrl('/api/projects?featured=true'))
+            fetch(apiUrl("/api/projects?featured=true"))
               .then((r) => r.json())
               .then((pData) => {
                 if (pData.success && pData.data && pData.data.length > 0) {
                   const feat = pData.data[0];
                   setActiveVideoUrl(feat.videoUrl);
-                  setActivePosterUrl(feat.thumbnailUrl || '');
+                  setActivePosterUrl(feat.thumbnailUrl || "");
                 }
               })
               .catch(() => {});
@@ -78,7 +94,7 @@ export const FeaturedShowreel = ({
   // Viewport IntersectionObserver: auto-pause when scrolled out of view to save mobile bandwidth
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
+    if (!el || typeof IntersectionObserver === "undefined") return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -87,7 +103,7 @@ export const FeaturedShowreel = ({
           setIsPlaying(false);
         }
       },
-      { threshold: 0.15 }
+      { threshold: 0.15 },
     );
 
     observer.observe(el);
@@ -102,7 +118,7 @@ export const FeaturedShowreel = ({
       if (videoRef.current) {
         try {
           videoRef.current.pause();
-          videoRef.current.removeAttribute('src');
+          videoRef.current.removeAttribute("src");
           videoRef.current.load();
         } catch (e) {
           // ignore
@@ -132,7 +148,7 @@ export const FeaturedShowreel = ({
           setIsLoading(false);
         })
         .catch((err) => {
-          if (err.name === 'NotAllowedError') {
+          if (err.name === "NotAllowedError") {
             videoRef.current.muted = true;
             setIsMuted(true);
             videoRef.current
@@ -143,7 +159,7 @@ export const FeaturedShowreel = ({
               })
               .catch(() => setIsLoading(false));
           } else {
-            console.warn('Playback error:', err);
+            console.warn("Playback error:", err);
             setIsLoading(false);
             setHasError(true);
           }
@@ -181,13 +197,35 @@ export const FeaturedShowreel = ({
     }
   };
 
+  const optimizedVideoUrl = useMemo(
+    () => getDeviceOptimizedVideoUrl(activeVideoUrl),
+    [activeVideoUrl]
+  );
+
   const toggleFullscreen = (e) => {
     e.stopPropagation();
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch((err) => console.warn(err));
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container) return;
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen().catch(() => {
+          if (video && video.webkitEnterFullscreen) {
+            video.webkitEnterFullscreen();
+          }
+        });
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+      } else if (video && video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      }
     } else {
-      document.exitFullscreen().catch((err) => console.warn(err));
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch((err) => console.warn(err));
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen().catch((err) => console.warn(err));
+      }
     }
   };
 
@@ -217,10 +255,10 @@ export const FeaturedShowreel = ({
   };
 
   const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds)) return "0:00";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
   const handleMouseMove = () => {
@@ -241,14 +279,12 @@ export const FeaturedShowreel = ({
     <section id="showreel" className="py-20 relative bg-[#0C0C0C]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <FadeIn className="text-center mb-10">
-          <span className="text-xs font-semibold tracking-widest uppercase text-[#B600A8] bg-[#B600A8]/10 px-3 py-1 rounded-full border border-[#B600A8]/20">
-            Director's Showcase
-          </span>
           <h2 className="text-3xl sm:text-5xl font-extrabold text-white uppercase tracking-tight mt-3">
             Featured Showreel
           </h2>
           <p className="text-[#A6A6A6] text-sm sm:text-base max-w-2xl mx-auto mt-2">
-            A montage of high-energy commercial edits, 3D motion graphics, anime cuts, and cinematic color grades.
+            A montage of high-energy commercial edits, 3D motion graphics, anime
+            cuts, and cinematic color grades.
           </p>
         </FadeIn>
 
@@ -263,7 +299,9 @@ export const FeaturedShowreel = ({
             >
               {!hasStarted && activePosterUrl && (
                 <img
-                  src={getOptimizedThumbnailUrl(activePosterUrl, { width: 1200 })}
+                  src={getOptimizedThumbnailUrl(activePosterUrl, {
+                    width: 1200,
+                  })}
                   alt={title}
                   className="absolute inset-0 w-full h-full object-cover z-10 transition-transform duration-700 group-hover:scale-105"
                   loading="lazy"
@@ -272,29 +310,42 @@ export const FeaturedShowreel = ({
 
               <div
                 className={`absolute inset-0 bg-black/40 z-20 transition-opacity duration-300 ${
-                  isPlaying && !showControls ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                  isPlaying && !showControls
+                    ? "opacity-0 pointer-events-none"
+                    : "opacity-100"
                 }`}
               />
 
               <video
                 ref={videoRef}
-                src={getDeviceOptimizedVideoUrl(activeVideoUrl)}
-                poster={getOptimizedThumbnailUrl(activePosterUrl, { width: 1200 })}
+                src={optimizedVideoUrl}
+                poster={getOptimizedThumbnailUrl(activePosterUrl, {
+                  width: 1200,
+                })}
                 preload="metadata"
                 muted={isMuted}
                 playsInline
+                webkit-playsinline="true"
+                x5-playsinline="true"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onWaiting={() => {
-                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
-                  waitingTimeoutRef.current = setTimeout(() => setIsLoading(true), 400);
+                  if (waitingTimeoutRef.current)
+                    clearTimeout(waitingTimeoutRef.current);
+                  waitingTimeoutRef.current = setTimeout(
+                    () => setIsLoading(true),
+                    400,
+                  );
                 }}
                 onPlaying={() => {
-                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+                  if (waitingTimeoutRef.current)
+                    clearTimeout(waitingTimeoutRef.current);
                   setIsLoading(false);
                 }}
                 onError={() => {
-                  if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+                  if (waitingTimeoutRef.current)
+                    clearTimeout(waitingTimeoutRef.current);
+                  if (videoRef.current?.error?.code === 1) return;
                   setIsLoading(false);
                   setHasError(true);
                 }}
@@ -304,8 +355,12 @@ export const FeaturedShowreel = ({
               {hasError && (
                 <div className="absolute inset-0 bg-black/85 z-30 flex flex-col items-center justify-center p-6 text-center">
                   <AlertCircle className="w-10 h-10 text-red-500 mb-2" />
-                  <p className="text-white font-medium">Video preview temporarily unavailable</p>
-                  <p className="text-xs text-[#A6A6A6] mt-1">Check video source or connection</p>
+                  <p className="text-white font-medium">
+                    Video preview temporarily unavailable
+                  </p>
+                  <p className="text-xs text-[#A6A6A6] mt-1">
+                    Check video source or connection
+                  </p>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -333,7 +388,9 @@ export const FeaturedShowreel = ({
 
               <div
                 className={`absolute bottom-0 left-0 right-0 z-30 p-4 sm:p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-300 ${
-                  showControls || !isPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  showControls || !isPlaying
+                    ? "opacity-100"
+                    : "opacity-0 pointer-events-none"
                 }`}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -354,9 +411,13 @@ export const FeaturedShowreel = ({
                     <button
                       onClick={togglePlay}
                       className="p-2 rounded-full hover:bg-white/10 transition-colors"
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                      aria-label={isPlaying ? "Pause" : "Play"}
                     >
-                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white" />}
+                      {isPlaying ? (
+                        <Pause className="w-5 h-5" />
+                      ) : (
+                        <Play className="w-5 h-5 fill-white" />
+                      )}
                     </button>
 
                     {/* Volume Controls */}
@@ -365,7 +426,7 @@ export const FeaturedShowreel = ({
                         type="button"
                         onClick={toggleMute}
                         className="text-white hover:text-[#B600A8] transition-colors"
-                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                        aria-label={isMuted ? "Unmute" : "Mute"}
                       >
                         {isMuted || volume === 0 ? (
                           <VolumeX className="w-4 h-4 text-red-400" />
@@ -382,14 +443,19 @@ export const FeaturedShowreel = ({
                         max="1"
                         step="0.05"
                         value={isMuted ? 0 : volume}
-                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          handleVolumeChange(parseFloat(e.target.value))
+                        }
                         className="w-14 sm:w-20 h-1.5 accent-[#B600A8] bg-white/20 rounded-lg cursor-pointer"
                         aria-label="Volume slider"
                       />
                     </div>
 
                     <span className="text-xs font-mono text-[#A6A6A6]">
-                      {videoRef.current ? formatTime(videoRef.current.currentTime) : '0:00'} / {formatTime(duration)}
+                      {videoRef.current
+                        ? formatTime(videoRef.current.currentTime)
+                        : "0:00"}{" "}
+                      / {formatTime(duration)}
                     </span>
                   </div>
 
@@ -419,7 +485,8 @@ export const FeaturedShowreel = ({
                 Featured Showreel Ready For Upload
               </h3>
               <p className="text-xs sm:text-sm text-[#A6A6A6] mt-2 max-w-md">
-                Upload your latest showreel or mark any project as "Featured" in the Admin Dashboard to activate this player.
+                Upload your latest showreel or mark any project as "Featured" in
+                the Admin Dashboard to activate this player.
               </p>
               <div className="mt-6 flex items-center gap-3">
                 <Link

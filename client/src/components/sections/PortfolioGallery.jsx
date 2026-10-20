@@ -105,6 +105,8 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
             muted
             loop
             playsInline
+            webkit-playsinline="true"
+            x5-playsinline="true"
             onPlaying={() => setIsVideoReady(true)}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
               isVideoReady ? 'opacity-100' : 'opacity-0'
