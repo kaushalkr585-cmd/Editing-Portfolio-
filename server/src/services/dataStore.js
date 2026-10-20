@@ -154,21 +154,6 @@ export const initializeDataStore = async () => {
       console.warn('[DataStore] MongoDB seeding error:', err.message);
     }
   }
-
-  // Auto-discover and restore videos from Cloudinary if projects list is empty
-  let projectCount = memoryProjects.length;
-  if (getDbStatus()) {
-    try {
-      projectCount = await Project.countDocuments();
-    } catch (e) {
-      projectCount = memoryProjects.length;
-    }
-  }
-
-  if (projectCount === 0) {
-    console.log('[DataStore] Projects list is empty. Auto-discovering videos from Cloudinary...');
-    await DataStore.syncProjectsFromCloudinary();
-  }
 };
 
 export const DataStore = {
