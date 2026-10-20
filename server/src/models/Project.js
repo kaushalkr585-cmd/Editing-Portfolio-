@@ -88,5 +88,9 @@ const projectSchema = new mongoose.Schema(
 
 projectSchema.index({ category: 1, featured: -1, order: 1 });
 projectSchema.index({ title: 'text', description: 'text', tags: 'text' });
+projectSchema.index({ cloudinaryPublicId: 1 }, { unique: true, sparse: true });
+
+projectSchema.set('toJSON', { virtuals: true });
+projectSchema.set('toObject', { virtuals: true });
 
 export const Project = mongoose.model('Project', projectSchema);

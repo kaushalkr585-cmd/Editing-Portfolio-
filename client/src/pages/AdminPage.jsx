@@ -733,6 +733,7 @@ export const AdminPage = () => {
 
   const handleSaveProjectEdit = async (e) => {
     e.preventDefault();
+    if (!editingProject) return;
     const projId = editingProject._id || editingProject.id;
     try {
       const res = await fetch(apiUrl(`/api/projects/${projId}`), {
@@ -741,13 +742,28 @@ export const AdminPage = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editingProject),
+        body: JSON.stringify({
+          title: editingProject.title,
+          category: editingProject.category,
+          categoryId: editingProject.categoryId,
+          description: editingProject.description,
+          aspectRatio: editingProject.aspectRatio,
+          duration: editingProject.duration,
+          tags: editingProject.tags,
+          featured: editingProject.featured,
+          published: editingProject.published,
+          thumbnailUrl: editingProject.thumbnailUrl,
+          thumbnailPublicId: editingProject.thumbnailPublicId,
+        }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
+        const updated = data.data;
         setIsEditModalOpen(false);
         showNotification('success', 'Project updated successfully!');
-        loadDashboardData();
+        setProjects((prev) =>
+          prev.map((p) => ((p._id || p.id) === (updated._id || updated.id) ? updated : p))
+        );
       } else {
         alert(data.message || 'Update failed');
       }

@@ -167,25 +167,65 @@ router.post('/', requireAdminAuth, async (req, res) => {
  */
 router.put('/:id', requireAdminAuth, async (req, res) => {
   try {
-    const updateData = { ...req.body };
-
-    // If updating Cloudinary public ID, refresh URLs if needed
-    if (updateData.cloudinaryPublicId && CloudinaryService.isConfigured()) {
-      const urls = CloudinaryService.getVideoDeliveryUrls(
-        updateData.cloudinaryPublicId,
-        updateData.videoUrl,
-        updateData.thumbnailUrl
-      );
-      if (!updateData.videoUrl) updateData.videoUrl = urls.videoUrl;
-      if (!updateData.thumbnailUrl) updateData.thumbnailUrl = urls.thumbnailUrl;
+    const projId = req.params.id;
+    const existing = await DataStore.getProjectByIdOrSlug(projId);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    const existing = await DataStore.getProjectByIdOrSlug(req.params.id);
+    const cleanUpdate = {};
+    const allowedFields = [
+      'title',
+      'category',
+      'categoryId',
+      'description',
+      'tags',
+      'videoUrl',
+      'thumbnailUrl',
+      'thumbnailPublicId',
+      'cloudinaryPublicId',
+      'duration',
+      'aspectRatio',
+      'featured',
+      'published',
+      'client',
+      'order',
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        cleanUpdate[field] = req.body[field];
+      }
+    }
+
+    // Title validation
+    if (cleanUpdate.title !== undefined) {
+      const trimmedTitle = cleanUpdate.title.trim();
+      if (!trimmedTitle) {
+        return res.status(400).json({ success: false, message: 'Project title cannot be empty.' });
+      }
+      cleanUpdate.title = trimmedTitle;
+    }
+
+    // Category validation & resolution
+    if (cleanUpdate.category !== undefined) {
+      cleanUpdate.category = cleanUpdate.category.trim();
+    }
+    if (cleanUpdate.categoryId && !cleanUpdate.category) {
+      const cat = await DataStore.getCategoryByIdOrSlug(cleanUpdate.categoryId);
+      if (cat) cleanUpdate.category = cat.name;
+    }
+
+    // Tags normalization
+    if (typeof cleanUpdate.tags === 'string') {
+      cleanUpdate.tags = cleanUpdate.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    }
+
+    // If thumbnail was replaced with a new custom image, clean up old thumbnail
     if (
-      existing &&
       existing.thumbnailPublicId &&
-      updateData.thumbnailPublicId &&
-      existing.thumbnailPublicId !== updateData.thumbnailPublicId
+      cleanUpdate.thumbnailPublicId &&
+      existing.thumbnailPublicId !== cleanUpdate.thumbnailPublicId
     ) {
       try {
         await CloudinaryService.deleteAsset(existing.thumbnailPublicId, 'image');
@@ -194,13 +234,9 @@ router.put('/:id', requireAdminAuth, async (req, res) => {
       }
     }
 
-    if (typeof updateData.tags === 'string') {
-      updateData.tags = updateData.tags.split(',').map((t) => t.trim()).filter(Boolean);
-    }
-
-    const updated = await DataStore.updateProject(req.params.id, updateData);
+    const updated = await DataStore.updateProject(projId, cleanUpdate);
     if (!updated) {
-      return res.status(404).json({ success: false, message: 'Project not found' });
+      return res.status(404).json({ success: false, message: 'Project update failed' });
     }
     res.json({
       success: true,

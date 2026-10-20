@@ -118,6 +118,26 @@ export const initializeDataStore = async () => {
 
   if (getDbStatus()) {
     try {
+      // 1. Check if projects exist in MongoDB (MongoDB is the source of truth)
+      const dbProjects = await Project.find().sort({ order: 1, createdAt: -1 });
+      if (dbProjects.length > 0) {
+        memoryProjects = dbProjects.map(p => (p.toObject ? p.toObject({ virtuals: true }) : p));
+        savePersistentFile();
+        console.log(`[DataStore] MongoDB is authoritative source. Synced ${memoryProjects.length} custom projects into local cache.`);
+      } else if (memoryProjects.length > 0) {
+        console.log(`[DataStore] MongoDB projects collection is empty. Seeding ${memoryProjects.length} projects into MongoDB Atlas...`);
+        for (const p of memoryProjects) {
+          const docData = { ...p };
+          delete docData._id;
+          delete docData.id;
+          try {
+            await Project.create(docData);
+          } catch (e) {
+            // ignore duplicate slug
+          }
+        }
+      }
+
       // Seed categories in MongoDB if empty
       const catCount = await Category.countDocuments();
       if (catCount === 0) {
@@ -289,7 +309,8 @@ export const DataStore = {
             { tags: { $in: [new RegExp(search, 'i')] } },
           ];
         }
-        return await Project.find(query).sort({ order: 1, createdAt: -1 });
+        const docs = await Project.find(query).sort({ order: 1, createdAt: -1 });
+        return docs.map(d => (d.toObject ? d.toObject({ virtuals: true }) : d));
       } catch (err) {
         console.warn('[DataStore] MongoDB getProjects error, falling back to memory:', err.message);
       }
@@ -322,17 +343,29 @@ export const DataStore = {
   },
 
   getProjectByIdOrSlug: async (identifier) => {
+    if (!identifier) return null;
+    const cleanId = typeof identifier === 'string' ? identifier.trim() : String(identifier);
+    const isObjectId = cleanId.match(/^[0-9a-fA-F]{24}$/);
+
     if (getDbStatus()) {
       try {
-        const project = await Project.findOne({
-          $or: [{ _id: identifier.match(/^[0-9a-fA-F]{24}$/) ? identifier : null }, { slug: identifier }, { id: identifier }].filter(Boolean)
-        });
-        if (project) return project;
+        const query = {
+          $or: [
+            ...(isObjectId ? [{ _id: cleanId }] : []),
+            { slug: cleanId },
+            { id: cleanId },
+            { cloudinaryPublicId: cleanId },
+          ],
+        };
+        const project = await Project.findOne(query);
+        if (project) return project.toObject ? project.toObject({ virtuals: true }) : project;
       } catch (err) {
         console.warn('[DataStore] MongoDB getProject error:', err.message);
       }
     }
-    return memoryProjects.find(p => p.id === identifier || p.slug === identifier || p._id === identifier);
+    return memoryProjects.find(
+      p => p.id === cleanId || p.slug === cleanId || p._id === cleanId || p._id?.toString() === cleanId || p.cloudinaryPublicId === cleanId
+    ) || null;
   },
 
   createProject: async (projectData) => {
@@ -342,15 +375,29 @@ export const DataStore = {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '') + '-' + Date.now();
     }
-    if (!projectData.description) {
+    if (projectData.description === undefined) {
       projectData.description = '';
     }
 
     let createdDoc = null;
     if (getDbStatus()) {
       try {
-        const created = await Project.create(projectData);
-        createdDoc = created.toObject ? created.toObject() : created;
+        if (projectData.cloudinaryPublicId) {
+          const existing = await Project.findOne({ cloudinaryPublicId: projectData.cloudinaryPublicId });
+          if (existing) {
+            console.log(`[DataStore] Project with public ID ${projectData.cloudinaryPublicId} already exists. Updating metadata...`);
+            const updated = await Project.findByIdAndUpdate(
+              existing._id,
+              { $set: projectData },
+              { new: true, runValidators: true }
+            );
+            createdDoc = updated.toObject ? updated.toObject({ virtuals: true }) : updated;
+          }
+        }
+        if (!createdDoc) {
+          const created = await Project.create(projectData);
+          createdDoc = created.toObject ? created.toObject({ virtuals: true }) : created;
+        }
       } catch (err) {
         console.warn('[DataStore] MongoDB createProject error:', err.message);
       }
@@ -363,9 +410,11 @@ export const DataStore = {
       updatedAt: new Date().toISOString(),
     };
 
-    // Ensure it is safely prepended to memory store without duplicates
+    // Ensure it is safely stored in memory store without duplicates
     const existsIdx = memoryProjects.findIndex(
-      p => (p._id && p._id.toString() === newProj._id?.toString()) || (p.id && p.id === newProj.id)
+      p => (p._id && p._id.toString() === newProj._id?.toString()) ||
+           (p.id && p.id === newProj.id) ||
+           (newProj.cloudinaryPublicId && p.cloudinaryPublicId === newProj.cloudinaryPublicId)
     );
     if (existsIdx === -1) {
       memoryProjects.unshift(newProj);
@@ -378,15 +427,26 @@ export const DataStore = {
 
   updateProject: async (id, updateData) => {
     let updatedDoc = null;
+    const cleanId = typeof id === 'string' ? id.trim() : String(id);
+    const isObjectId = cleanId.match(/^[0-9a-fA-F]{24}$/);
+
     if (getDbStatus()) {
       try {
+        const query = {
+          $or: [
+            ...(isObjectId ? [{ _id: cleanId }] : []),
+            { id: cleanId },
+            { slug: cleanId },
+            { cloudinaryPublicId: cleanId },
+          ],
+        };
         const updated = await Project.findOneAndUpdate(
-          { $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }, { slug: id }].filter(Boolean) },
+          query,
           { $set: updateData },
-          { new: true }
+          { new: true, runValidators: true }
         );
         if (updated) {
-          updatedDoc = updated.toObject ? updated.toObject() : updated;
+          updatedDoc = updated.toObject ? updated.toObject({ virtuals: true }) : updated;
         }
       } catch (err) {
         console.warn('[DataStore] MongoDB updateProject error:', err.message);
@@ -394,7 +454,7 @@ export const DataStore = {
     }
 
     const idx = memoryProjects.findIndex(
-      p => p.id === id || p.slug === id || p._id === id || p._id?.toString() === id
+      p => p.id === cleanId || p.slug === cleanId || p._id === cleanId || p._id?.toString() === cleanId || p.cloudinaryPublicId === cleanId
     );
     if (idx !== -1) {
       memoryProjects[idx] = {
@@ -460,39 +520,82 @@ export const DataStore = {
       }
 
       let addedCount = 0;
+      let updatedCount = 0;
       const cName = process.env.CLOUDINARY_CLOUD_NAME || 'dleaqmeug';
 
       for (const res of syncRes.resources) {
         const publicId = res.public_id;
-        const existsInMem = memoryProjects.some(p => p.cloudinaryPublicId === publicId);
-        let existsInDb = false;
+        let dbDoc = null;
 
         if (getDbStatus()) {
           try {
-            existsInDb = Boolean(await Project.findOne({ cloudinaryPublicId: publicId }));
+            dbDoc = await Project.findOne({ cloudinaryPublicId: publicId });
           } catch (e) {
             // ignore
           }
         }
 
-        if (!existsInMem && !existsInDb) {
+        const memIdx = memoryProjects.findIndex(p => p.cloudinaryPublicId === publicId);
+        const existing = dbDoc
+          ? (dbDoc.toObject ? dbDoc.toObject({ virtuals: true }) : dbDoc)
+          : (memIdx !== -1 ? memoryProjects[memIdx] : null);
+
+        if (existing) {
+          // PRESERVE ALL USER-CONFIGURED METADATA (Title, Category, Description, Tags, Thumbnail, etc.)
+          // Only sync technical delivery URL if it was missing
+          let neededTechnicalUpdate = false;
+          const techUpdate = {};
+
+          if (!existing.videoUrl) {
+            techUpdate.videoUrl = `https://res.cloudinary.com/${cName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`;
+            neededTechnicalUpdate = true;
+          }
+          if (!existing.thumbnailUrl) {
+            techUpdate.thumbnailUrl = `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`;
+            neededTechnicalUpdate = true;
+          }
+
+          if (neededTechnicalUpdate) {
+            if (getDbStatus() && dbDoc) {
+              await Project.updateOne({ _id: dbDoc._id }, { $set: techUpdate });
+            }
+            if (memIdx !== -1) {
+              memoryProjects[memIdx] = { ...memoryProjects[memIdx], ...techUpdate };
+            }
+            updatedCount++;
+          } else if (dbDoc && memIdx !== -1) {
+            // Sync user's custom MongoDB metadata into memory cache
+            memoryProjects[memIdx] = { ...memoryProjects[memIdx], ...existing };
+          } else if (dbDoc && memIdx === -1) {
+            memoryProjects.push(existing);
+          }
+        } else {
+          // Genuinely unmanaged, new video asset in Cloudinary
           const rawName = publicId.replace(/^portfolio_videos\//, '');
+          const cleanName = (res.context?.custom?.caption || res.context?.custom?.title || res.display_name || rawName)
+            .replace(/[-_]+/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+
+          const derivedRatio = (res.width && res.height)
+            ? (res.width === res.height ? '1:1' : (res.height > res.width ? '9:16' : '16:9'))
+            : '16:9';
+
           const newProj = {
             id: `proj-${rawName}`,
-            title: `Portfolio Edit — ${rawName.slice(0, 8).toUpperCase()}`,
-            slug: `project-${rawName}`,
-            category: 'Commercial Ads',
-            categoryId: 'cat-commercials',
-            description: 'Cinematic visual edit created and uploaded to studio portfolio.',
+            title: cleanName || 'New Video Edit',
+            slug: `project-${rawName.toLowerCase()}-${Date.now()}`,
+            category: 'Other Projects',
+            categoryId: 'cat-other',
+            description: '',
             videoUrl: `https://res.cloudinary.com/${cName}/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/${publicId}.mp4`,
             thumbnailUrl: `https://res.cloudinary.com/${cName}/video/upload/so_0,f_auto,q_auto,w_600/${publicId}.jpg`,
             cloudinaryPublicId: publicId,
-            aspectRatio: '16:9',
-            duration: '0:30',
+            aspectRatio: derivedRatio,
+            duration: res.duration ? `${Math.floor(res.duration)}s` : '0:30',
             featured: false,
             published: true,
-            client: 'Studio Client',
-            tags: ['Cinematic', 'Visuals'],
+            client: '',
+            tags: [],
             isDemo: false,
             createdAt: res.created_at || new Date().toISOString(),
             updatedAt: res.created_at || new Date().toISOString(),
@@ -501,7 +604,7 @@ export const DataStore = {
           if (getDbStatus()) {
             try {
               const createdDb = await Project.create(newProj);
-              memoryProjects.unshift(createdDb.toObject());
+              memoryProjects.unshift(createdDb.toObject ? createdDb.toObject({ virtuals: true }) : createdDb);
             } catch (err) {
               memoryProjects.unshift(newProj);
             }
@@ -513,8 +616,8 @@ export const DataStore = {
       }
 
       savePersistentFile();
-      console.log(`[DataStore] Cloudinary sync complete. Auto-restored ${addedCount} videos.`);
-      return { success: true, count: addedCount, total: memoryProjects.length };
+      console.log(`[DataStore] Cloudinary sync complete. Imported ${addedCount} new assets, preserved existing custom metadata for all others.`);
+      return { success: true, count: addedCount, updated: updatedCount, total: memoryProjects.length };
     } catch (err) {
       console.warn('[DataStore] Error during Cloudinary sync:', err.message);
       return { success: false, message: err.message };
