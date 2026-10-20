@@ -27,7 +27,7 @@ const projectSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: true,
+      default: '',
       maxlength: 2000,
     },
     tags: [{ type: String, trim: true }],

@@ -123,7 +123,7 @@ export const CloudinaryService = {
   /**
    * Generates a signed upload signature for direct secure browser-to-Cloudinary upload
    */
-  generateUploadSignature: (folder = 'portfolio_videos') => {
+  generateUploadSignature: (folder = 'portfolio_videos', customPublicId = null) => {
     const aKey = getApiKey();
     const aSecret = getApiSecret();
     const cName = getCloudName();
@@ -144,8 +144,17 @@ export const CloudinaryService = {
     }
 
     const timestamp = Math.round(new Date().getTime() / 1000);
+    // Generate a strictly unique public ID for every single upload to guarantee assets never overwrite each other
+    const prefix = folder.includes('thumb') ? 'thumb' : 'vid';
+    const randSuffix = Math.random().toString(36).substring(2, 10);
+    const uniquePublicId = customPublicId
+      ? customPublicId.replace(/[^a-zA-Z0-9_-]/g, '_')
+      : `${prefix}_${Date.now()}_${randSuffix}`;
+
     const paramsToSign = {
       folder,
+      overwrite: false,
+      public_id: uniquePublicId,
       timestamp,
     };
 
@@ -161,6 +170,8 @@ export const CloudinaryService = {
       apiKey: aKey,
       cloudName: cName,
       folder,
+      public_id: uniquePublicId,
+      overwrite: false,
     };
   },
 

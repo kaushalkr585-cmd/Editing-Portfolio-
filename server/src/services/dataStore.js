@@ -342,28 +342,42 @@ export const DataStore = {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '') + '-' + Date.now();
     }
+    if (!projectData.description) {
+      projectData.description = '';
+    }
 
+    let createdDoc = null;
     if (getDbStatus()) {
       try {
         const created = await Project.create(projectData);
-        return created;
+        createdDoc = created.toObject ? created.toObject() : created;
       } catch (err) {
         console.warn('[DataStore] MongoDB createProject error:', err.message);
       }
     }
 
-    const newProj = {
+    const newProj = createdDoc || {
       ...projectData,
       id: 'proj-' + Date.now(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    memoryProjects.unshift(newProj);
+
+    // Ensure it is safely prepended to memory store without duplicates
+    const existsIdx = memoryProjects.findIndex(
+      p => (p._id && p._id.toString() === newProj._id?.toString()) || (p.id && p.id === newProj.id)
+    );
+    if (existsIdx === -1) {
+      memoryProjects.unshift(newProj);
+    } else {
+      memoryProjects[existsIdx] = newProj;
+    }
     savePersistentFile();
     return newProj;
   },
 
   updateProject: async (id, updateData) => {
+    let updatedDoc = null;
     if (getDbStatus()) {
       try {
         const updated = await Project.findOneAndUpdate(
@@ -371,19 +385,27 @@ export const DataStore = {
           { $set: updateData },
           { new: true }
         );
-        if (updated) return updated;
+        if (updated) {
+          updatedDoc = updated.toObject ? updated.toObject() : updated;
+        }
       } catch (err) {
         console.warn('[DataStore] MongoDB updateProject error:', err.message);
       }
     }
 
-    const idx = memoryProjects.findIndex(p => p.id === id || p.slug === id || p._id === id);
+    const idx = memoryProjects.findIndex(
+      p => p.id === id || p.slug === id || p._id === id || p._id?.toString() === id
+    );
     if (idx !== -1) {
-      memoryProjects[idx] = { ...memoryProjects[idx], ...updateData, updatedAt: new Date().toISOString() };
+      memoryProjects[idx] = {
+        ...memoryProjects[idx],
+        ...(updatedDoc || updateData),
+        updatedAt: new Date().toISOString()
+      };
       savePersistentFile();
       return memoryProjects[idx];
     }
-    return null;
+    return updatedDoc;
   },
 
   deleteProject: async (id) => {

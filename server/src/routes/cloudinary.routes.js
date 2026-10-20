@@ -78,7 +78,8 @@ router.post('/cloud-name', requireAdminAuth, async (req, res) => {
 const handleSignature = (req, res) => {
   try {
     const folder = req.body?.folder || req.query?.folder || 'portfolio_videos';
-    const sigData = CloudinaryService.generateUploadSignature(folder);
+    const customPublicId = req.body?.publicId || req.query?.publicId || null;
+    const sigData = CloudinaryService.generateUploadSignature(folder, customPublicId);
     if (!sigData.isConfigured) {
       return res.status(400).json({
         success: false,

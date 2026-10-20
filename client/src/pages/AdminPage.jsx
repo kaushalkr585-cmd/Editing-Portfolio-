@@ -571,7 +571,7 @@ export const AdminPage = () => {
         throw new Error(sigJson.message || 'Could not obtain Cloudinary upload signature.');
       }
 
-      const { signature, timestamp, apiKey, cloudName, folder } = sigJson.data;
+      const { signature, timestamp, apiKey, cloudName, folder, public_id } = sigJson.data;
 
       // 2. Perform direct upload to Cloudinary with real-time XHR progress
       const formData = new FormData();
@@ -580,6 +580,10 @@ export const AdminPage = () => {
       formData.append('timestamp', timestamp);
       formData.append('signature', signature);
       formData.append('folder', folder);
+      if (public_id) {
+        formData.append('public_id', public_id);
+      }
+      formData.append('overwrite', 'false');
 
       const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
 
@@ -631,14 +635,18 @@ export const AdminPage = () => {
           });
           const thumbSigJson = await thumbSigRes.json();
           if (thumbSigJson.success && thumbSigJson.data) {
-            const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder } = thumbSigJson.data;
+            const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder, public_id: tPublicId } = thumbSigJson.data;
             const thumbFormData = new FormData();
             const coverUploadFile = selectedCover.file || selectedCover.blob;
-            thumbFormData.append('file', coverUploadFile, selectedCover.file?.name || 'cover.jpg');
+            thumbFormData.append('file', coverUploadFile);
             thumbFormData.append('api_key', tKey);
             thumbFormData.append('timestamp', tTs);
             thumbFormData.append('signature', tSig);
             thumbFormData.append('folder', tFolder);
+            if (tPublicId) {
+              thumbFormData.append('public_id', tPublicId);
+            }
+            thumbFormData.append('overwrite', 'false');
 
             const thumbRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
               method: 'POST',
@@ -687,6 +695,15 @@ export const AdminPage = () => {
       const saveData = await saveRes.json();
       if (!saveData.success) {
         throw new Error(saveData.message || 'Failed to save project record to database.');
+      }
+
+      const newProject = saveData.data;
+      if (newProject) {
+        setProjects((prev) => {
+          const exists = prev.some((p) => (p._id || p.id) === (newProject._id || newProject.id));
+          if (exists) return prev;
+          return [newProject, ...prev];
+        });
       }
 
       setUploadStatus('success');
@@ -789,14 +806,18 @@ export const AdminPage = () => {
         throw new Error(thumbSigJson.message || 'Failed to get upload signature for cover image.');
       }
 
-      const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder } = thumbSigJson.data;
+      const { signature: tSig, timestamp: tTs, apiKey: tKey, folder: tFolder, public_id: tPublicId } = thumbSigJson.data;
       const thumbFormData = new FormData();
       const coverUploadFile = newCoverData.file || newCoverData.blob;
-      thumbFormData.append('file', coverUploadFile, newCoverData.file?.name || 'cover.jpg');
+      thumbFormData.append('file', coverUploadFile);
       thumbFormData.append('api_key', tKey);
       thumbFormData.append('timestamp', tTs);
       thumbFormData.append('signature', tSig);
       thumbFormData.append('folder', tFolder);
+      if (tPublicId) {
+        thumbFormData.append('public_id', tPublicId);
+      }
+      thumbFormData.append('overwrite', 'false');
 
       const thumbRes = await fetch(`https://api.cloudinary.com/v1_1/${activeCloudName}/image/upload`, {
         method: 'POST',

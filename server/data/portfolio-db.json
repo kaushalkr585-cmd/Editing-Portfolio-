@@ -1,5 +1,167 @@
 {
-  "projects": [],
+  "projects": [
+    {
+      "id": "proj-bs0f8iw0urdgsl049phm",
+      "title": "Visual Edit — Project 07",
+      "slug": "visual-edit-project-07",
+      "category": "Commercial Ads",
+      "categoryId": "cat-commercials",
+      "description": "Cinematic visual edit created and uploaded to studio portfolio.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/bs0f8iw0urdgsl049phm.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/bs0f8iw0urdgsl049phm.jpg",
+      "cloudinaryPublicId": "portfolio_videos/bs0f8iw0urdgsl049phm",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": true,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Cinematic",
+        "Visuals"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-20T05:00:10Z",
+      "updatedAt": "2026-10-20T05:00:10Z"
+    },
+    {
+      "id": "proj-hxnpqyg9e5xagumoqibj",
+      "title": "Visual Edit — Project 06",
+      "slug": "visual-edit-project-06",
+      "category": "Commercial Ads",
+      "categoryId": "cat-commercials",
+      "description": "Cinematic visual edit created and uploaded to studio portfolio.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/hxnpqyg9e5xagumoqibj.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/hxnpqyg9e5xagumoqibj.jpg",
+      "cloudinaryPublicId": "portfolio_videos/hxnpqyg9e5xagumoqibj",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": false,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Cinematic",
+        "Pacing"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-20T04:54:18Z",
+      "updatedAt": "2026-10-20T04:54:18Z"
+    },
+    {
+      "id": "proj-m5wxjeuqprp9wcfix8jf",
+      "title": "Visual Edit — Project 05",
+      "slug": "visual-edit-project-05",
+      "category": "Commercial Ads",
+      "categoryId": "cat-commercials",
+      "description": "Cinematic visual edit created and uploaded to studio portfolio.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/m5wxjeuqprp9wcfix8jf.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/m5wxjeuqprp9wcfix8jf.jpg",
+      "cloudinaryPublicId": "portfolio_videos/m5wxjeuqprp9wcfix8jf",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": false,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Color Grade",
+        "Visuals"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-19T21:30:15Z",
+      "updatedAt": "2026-10-19T21:30:15Z"
+    },
+    {
+      "id": "proj-o6vtcfbdvuunfrpvjcv4",
+      "title": "Visual Edit — Project 04",
+      "slug": "visual-edit-project-04",
+      "category": "Reels & Shorts",
+      "categoryId": "cat-reels",
+      "description": "High-energy fast-paced visual reel.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/o6vtcfbdvuunfrpvjcv4.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/o6vtcfbdvuunfrpvjcv4.jpg",
+      "cloudinaryPublicId": "portfolio_videos/o6vtcfbdvuunfrpvjcv4",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": false,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Reels",
+        "Pacing"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-19T21:27:48Z",
+      "updatedAt": "2026-10-19T21:27:48Z"
+    },
+    {
+      "id": "proj-oqbmciau7asjzgw7grs9",
+      "title": "Visual Edit — Project 03",
+      "slug": "visual-edit-project-03",
+      "category": "Motion Graphics & VFX",
+      "categoryId": "cat-motion",
+      "description": "Dynamic VFX and sound-designed creative sequence.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/oqbmciau7asjzgw7grs9.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/oqbmciau7asjzgw7grs9.jpg",
+      "cloudinaryPublicId": "portfolio_videos/oqbmciau7asjzgw7grs9",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": false,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Motion Graphics",
+        "Sound Design"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-19T21:32:10Z",
+      "updatedAt": "2026-10-19T21:32:10Z"
+    },
+    {
+      "id": "proj-rx76dr01d9w5owjmz1to",
+      "title": "Visual Edit — Project 02",
+      "slug": "visual-edit-project-02",
+      "category": "Travel & Cinematic",
+      "categoryId": "cat-travel",
+      "description": "Cinematic travel sequence with smooth transitions and immersive soundscape.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/rx76dr01d9w5owjmz1to.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/rx76dr01d9w5owjmz1to.jpg",
+      "cloudinaryPublicId": "portfolio_videos/rx76dr01d9w5owjmz1to",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": false,
+      "published": true,
+      "client": "Studio Client",
+      "tags": [
+        "Travel",
+        "Cinematic"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-19T21:26:15Z",
+      "updatedAt": "2026-10-19T21:26:15Z"
+    },
+    {
+      "id": "proj-spt43ekpedpgy3kln3bd",
+      "title": "Visual Edit — Project 01",
+      "slug": "visual-edit-project-01",
+      "category": "Commercial Ads",
+      "categoryId": "cat-commercials",
+      "description": "Commercial brand edit with crisp typography and punchy color science.",
+      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/spt43ekpedpgy3kln3bd.mp4",
+      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/spt43ekpedpgy3kln3bd.jpg",
+      "cloudinaryPublicId": "portfolio_videos/spt43ekpedpgy3kln3bd",
+      "aspectRatio": "1:1",
+      "duration": "0:30",
+      "featured": true,
+      "published": true,
+      "client": "Brand Partner",
+      "tags": [
+        "Commercial",
+        "Branding"
+      ],
+      "isDemo": false,
+      "createdAt": "2026-10-19T21:39:43Z",
+      "updatedAt": "2026-10-19T21:39:43Z"
+    }
+  ],
   "categories": [
     {
       "id": "cat-saas",
