@@ -7,13 +7,15 @@ import { getOptimizedVideoUrl, getOptimizedThumbnailUrl, isTouchDevice } from '.
 import { apiUrl } from '../../utils/api';
 
 /**
- * High-Performance Portfolio Video Card
+ * Standardized High-Performance Portfolio Video Card
+ * - Uniform 16:9 aspect ratio thumbnail across all cards regardless of native video ratio
+ * - Equal height layout in every grid row with pinned bottom action bar
  * - Displays optimized Cloudinary thumbnail first with lazy loading (Zero upfront video download)
  * - On touch/mobile devices: keeps video unmounted to save 100% of mobile gallery bandwidth
  * - On desktop: loads a lightweight 720p muted preview only on intentional hover (debounced 150ms)
- * - Automatically pauses and releases decoder resources when scrolled out of the viewport
+ * - Automatically pauses and releases decoder resources when scrolled out of viewport
  */
-const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onHoverEnd, onClick }) => {
+const PortfolioCard = ({ project, isHovered, onHoverStart, onHoverEnd, onClick }) => {
   const cardRef = useRef(null);
   const videoRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
@@ -66,7 +68,7 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
   }, [isHovered, isInView, isTouch]);
 
   // Optimized URLs for mobile & desktop
-  const optimizedThumbnail = getOptimizedThumbnailUrl(project.thumbnailUrl, { width: 600, quality: 'q_auto' });
+  const optimizedThumbnail = getOptimizedThumbnailUrl(project.thumbnailUrl, { width: 800, quality: 'q_auto' });
   const optimizedVideoPreview = getOptimizedVideoUrl(project.videoUrl, { maxWidth: 720, quality: 'q_auto:eco' });
 
   return (
@@ -75,10 +77,10 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
       onClick={onClick}
-      className="group relative bg-[#141414] border border-white/[0.08] hover:border-[#B600A8]/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-[#B600A8]/10 cursor-pointer flex flex-col"
+      className="group relative bg-[#141414] border border-white/[0.08] hover:border-[#B600A8]/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-[#B600A8]/10 hover:-translate-y-1 cursor-pointer flex flex-col h-full w-full"
     >
-      {/* Media Container with explicit aspect ratio */}
-      <div className={`relative w-full ${aspectRatioClass} bg-black overflow-hidden`}>
+      {/* 1. Standardized 16:9 Thumbnail / Video Preview Container */}
+      <div className="relative w-full aspect-video bg-black overflow-hidden flex-shrink-0">
         {/* Saved Cloudinary Thumbnail - Always displayed first */}
         {project.thumbnailUrl ? (
           <img
@@ -114,20 +116,20 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
           />
         )}
 
-        {/* Top Badges */}
+        {/* 2 & 3. Badges: Category (Top-Left) & Native Aspect Ratio (Top-Right) */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
-          <span className="text-[10px] font-semibold uppercase tracking-wider bg-black/75 backdrop-blur-md text-[#BBCCD7] px-2.5 py-1 rounded-full border border-white/10">
+          <span className="text-[10px] font-semibold uppercase tracking-wider bg-black/80 backdrop-blur-md text-[#BBCCD7] px-2.5 py-1 rounded-full border border-white/10 shadow-sm">
             {project.category}
           </span>
 
           {project.aspectRatio && (
-            <span className="text-[10px] font-mono font-medium bg-black/75 backdrop-blur-md text-[#A6A6A6] px-2 py-0.5 rounded border border-white/10">
+            <span className="text-[10px] font-mono font-medium bg-black/80 backdrop-blur-md text-[#A6A6A6] px-2 py-0.5 rounded border border-white/10 shadow-sm">
               {project.aspectRatio}
             </span>
           )}
         </div>
 
-        {/* Center Play Button Overlay */}
+        {/* Center Play Button Overlay on Hover */}
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 gap-2">
           <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
             <Play className="w-5 h-5 fill-black ml-0.5" />
@@ -137,10 +139,10 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
           </span>
         </div>
 
-        {/* Bottom Duration Badge */}
+        {/* 4. Video Duration Badge (Bottom-Right) */}
         {project.duration && (
           <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none">
-            <span className="text-[10px] font-mono bg-black/80 backdrop-blur-md text-white/90 px-2 py-0.5 rounded flex items-center gap-1">
+            <span className="text-[10px] font-mono bg-black/80 backdrop-blur-md text-white/90 px-2 py-0.5 rounded flex items-center gap-1 border border-white/10 shadow-sm">
               <Clock className="w-3 h-3 text-[#B600A8]" />
               {project.duration}
             </span>
@@ -148,34 +150,47 @@ const PortfolioCard = ({ project, aspectRatioClass, isHovered, onHoverStart, onH
         )}
       </div>
 
-      {/* Content Details */}
-      <div className="p-5 flex-1 flex flex-col justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-white group-hover:text-[#BBCCD7] transition-colors line-clamp-1">
+      {/* Structured Content Area with Equal Height Flex Distribution */}
+      <div className="p-5 sm:p-6 flex-1 flex flex-col justify-between">
+        <div className="flex-1 flex flex-col">
+          {/* 5. Project Title - Consistent Top Alignment */}
+          <h3 className="text-lg font-bold text-white group-hover:text-[#BBCCD7] transition-colors line-clamp-1 tracking-tight">
             {project.title}
           </h3>
-          {project.description && (
-            <p className="text-xs text-[#A6A6A6] mt-2 line-clamp-2 leading-relaxed">
-              {project.description}
-            </p>
-          )}
+
+          {/* 6. Description - Consistent 2-Line Height Container */}
+          <div className="min-h-[2.5rem] mt-2">
+            {project.description ? (
+              <p className="text-xs text-[#A6A6A6] line-clamp-2 leading-relaxed">
+                {project.description}
+              </p>
+            ) : null}
+          </div>
+
+          {/* 7. Tags - Consistent Spacing Container */}
+          <div className="min-h-[1.75rem] mt-3 flex items-center gap-1.5 overflow-hidden flex-wrap">
+            {Array.isArray(project.tags) && project.tags.length > 0 ? (
+              project.tags.slice(0, 3).map((tag, tIdx) => (
+                <span
+                  key={tIdx}
+                  className="text-[10px] text-[#8E8E8E] bg-white/[0.04] px-2 py-0.5 rounded border border-white/5"
+                >
+                  #{tag}
+                </span>
+              ))
+            ) : null}
+          </div>
         </div>
 
-        {/* Tags & Action */}
-        <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-          <div className="flex items-center gap-1.5 overflow-hidden">
-            {Array.isArray(project.tags) && project.tags.slice(0, 2).map((tag, tIdx) => (
-              <span
-                key={tIdx}
-                className="text-[10px] text-[#8E8E8E] bg-white/[0.04] px-2 py-0.5 rounded"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-          <span className="text-xs text-[#B600A8] font-medium flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-            Details <Eye className="w-3.5 h-3.5" />
+        {/* 8. Details Button - Pinned Directly to Bottom Edge of Every Card */}
+        <div className="mt-auto pt-4 border-t border-white/[0.06] flex items-center justify-between">
+          <span className="text-[11px] font-medium text-[#6E6E6E] truncate max-w-[130px]">
+            {project.client || 'Featured Cut'}
           </span>
+          <div className="text-xs text-[#B600A8] group-hover:text-white font-medium flex items-center gap-1.5 transition-colors py-1 px-3 rounded-full bg-[#B600A8]/10 group-hover:bg-[#B600A8] border border-[#B600A8]/20 group-hover:border-transparent group-hover:shadow-glow-magenta">
+            <span>Details</span>
+            <Eye className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
         </div>
       </div>
     </div>
@@ -258,19 +273,6 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
     setActiveHoverId((current) => (current === id ? null : current));
   }, []);
 
-  const getCardAspectClass = (aspectRatio) => {
-    switch (aspectRatio) {
-      case '9:16':
-        return 'aspect-[9/16]';
-      case '1:1':
-        return 'aspect-square';
-      case '4:5':
-        return 'aspect-[4/5]';
-      default:
-        return 'aspect-video';
-    }
-  };
-
   // Build category list for tabs: "All Work" + dynamic categories
   const categoryTabs = ['All Work', ...categories.map((c) => c.name)];
 
@@ -318,10 +320,10 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
           )}
         </div>
 
-        {/* Dynamic Category Filter Tabs */}
+        {/* Dynamic Category Filter Tabs (Horizontally scrollable with zero page overflow) */}
         {categoryTabs.length > 1 && projects.length > 0 && (
           <FadeIn delay={0.15}>
-            <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none mb-10 no-scrollbar">
+            <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-10 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {categoryTabs.map((cat) => {
                 const isSelected = selectedCategory === cat;
                 return (
@@ -347,9 +349,22 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
 
         {/* Content Display */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 animate-pulse items-stretch">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="aspect-video bg-[#141414] rounded-2xl border border-white/5" />
+              <div key={i} className="h-full min-h-[380px] bg-[#141414] rounded-2xl border border-white/5 flex flex-col overflow-hidden">
+                <div className="w-full aspect-video bg-white/5" />
+                <div className="p-5 sm:p-6 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2.5">
+                    <div className="h-5 bg-white/10 rounded w-3/4" />
+                    <div className="h-3.5 bg-white/5 rounded w-full" />
+                    <div className="h-3.5 bg-white/5 rounded w-4/5" />
+                  </div>
+                  <div className="pt-4 border-t border-white/[0.06] flex justify-between items-center">
+                    <div className="h-3 bg-white/5 rounded w-20" />
+                    <div className="h-6 bg-white/10 rounded-full w-24" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : projects.length === 0 ? (
@@ -396,15 +411,15 @@ export const PortfolioGallery = ({ onSelectProjectForInquiry }) => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 items-start">
+          /* Standardized Responsive Grid with Equal Height Stretched Cards */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 items-stretch">
             {displayedProjects.map((project, idx) => {
               const projectId = project._id || project.id;
               const isHovered = activeHoverId === projectId;
               return (
-                <FadeIn key={projectId || idx} delay={idx * 0.05}>
+                <FadeIn key={projectId || idx} delay={idx * 0.05} className="h-full flex flex-col">
                   <PortfolioCard
                     project={project}
-                    aspectRatioClass={getCardAspectClass(project.aspectRatio)}
                     isHovered={isHovered}
                     onHoverStart={() => handleHoverStart(projectId)}
                     onHoverEnd={() => handleHoverEnd(projectId)}
