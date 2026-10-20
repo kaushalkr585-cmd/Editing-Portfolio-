@@ -305,7 +305,7 @@ export const DataStore = {
   },
 
   // Projects CRUD
-  getProjects: async ({ category, search, featured, publishedOnly = true }) => {
+  getProjects: async ({ category, search, featured, publishedOnly = true } = {}) => {
     if (getDbStatus()) {
       try {
         const query = {};
