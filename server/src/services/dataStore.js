@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Project } from '../models/Project.js';
+import { DeletedAsset } from '../models/DeletedAsset.js';
 import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { Inquiry } from '../models/Inquiry.js';
@@ -43,6 +44,7 @@ let memorySettings = {
   aboutBio: "I turn ideas and raw footage into compelling visual stories. From cinematic edits and anime AMVs to brand videos, real estate films, and podcast content, I focus on pacing, visual storytelling, color, sound, and detail. Let's create something unforgettable together!",
 };
 let memoryUsers = [];
+let memoryDeletedAssetIds = [];
 let globalActiveSession = {
   userId: null,
   sessionId: null,
@@ -61,6 +63,7 @@ function loadPersistentFile() {
       if (Array.isArray(data.inquiries)) memoryInquiries = data.inquiries;
       if (data.settings) memorySettings = { ...memorySettings, ...data.settings };
       if (Array.isArray(data.users)) memoryUsers = data.users;
+      if (Array.isArray(data.deletedAssetIds)) memoryDeletedAssetIds = data.deletedAssetIds;
       console.log(`[DataStore] Loaded persistent data: ${memoryProjects.length} projects, ${memoryCategories.length} categories.`);
     } else {
       savePersistentFile();
@@ -80,6 +83,7 @@ function savePersistentFile() {
       inquiries: memoryInquiries,
       settings: memorySettings,
       users: memoryUsers,
+      deletedAssetIds: memoryDeletedAssetIds,
       savedAt: new Date().toISOString(),
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(payload, null, 2), 'utf-8');
@@ -135,6 +139,14 @@ export const initializeDataStore = async () => {
           } catch (e) {
             // ignore duplicate slug
           }
+        }
+      }
+
+      // Sync tombstoned / deleted assets from MongoDB
+      const dbDeleted = await DeletedAsset.find();
+      for (const d of dbDeleted) {
+        if (!memoryDeletedAssetIds.includes(d.publicId)) {
+          memoryDeletedAssetIds.push(d.publicId);
         }
       }
 
@@ -469,15 +481,27 @@ export const DataStore = {
   },
 
   deleteProject: async (id) => {
-    let projToDelete = memoryProjects.find(p => p.id === id || p.slug === id || p._id === id);
+    if (!id) return false;
+    const cleanId = typeof id === 'string' ? id.trim() : String(id);
+    const isObjectId = cleanId.match(/^[0-9a-fA-F]{24}$/);
+
+    let projToDelete = memoryProjects.find(
+      p => p.id === cleanId || p.slug === cleanId || p._id === cleanId || String(p._id) === cleanId || p.cloudinaryPublicId === cleanId
+    );
 
     if (getDbStatus()) {
       try {
-        const doc = await Project.findOne({
-          $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }, { slug: id }].filter(Boolean)
-        });
+        const query = {
+          $or: [
+            ...(isObjectId ? [{ _id: cleanId }] : []),
+            { id: cleanId },
+            { slug: cleanId },
+            { cloudinaryPublicId: cleanId },
+          ],
+        };
+        const doc = await Project.findOne(query);
         if (doc) {
-          projToDelete = doc;
+          projToDelete = doc.toObject ? doc.toObject({ virtuals: true }) : doc;
           await Project.findByIdAndDelete(doc._id);
         }
       } catch (err) {
@@ -485,15 +509,33 @@ export const DataStore = {
       }
     }
 
-    // Clean up Cloudinary asset if public ID is present
+    // Clean up Cloudinary assets & record in tombstone registry
     if (projToDelete && projToDelete.cloudinaryPublicId) {
+      const publicId = projToDelete.cloudinaryPublicId;
       try {
-        console.log(`[DataStore] Deleting Cloudinary video asset: ${projToDelete.cloudinaryPublicId}`);
-        await CloudinaryService.deleteAsset(projToDelete.cloudinaryPublicId, 'video');
+        console.log(`[DataStore] Deleting Cloudinary video asset: ${publicId}`);
+        await CloudinaryService.deleteAsset(publicId, 'video');
       } catch (e) {
-        console.warn('[DataStore] Cloudinary asset delete warning:', e.message);
+        console.warn('[DataStore] Cloudinary video delete warning:', e.message);
+      }
+
+      // Add to tombstone registry so Cloudinary sync NEVER resurrects it
+      if (!memoryDeletedAssetIds.includes(publicId)) {
+        memoryDeletedAssetIds.push(publicId);
+      }
+      if (getDbStatus()) {
+        try {
+          await DeletedAsset.updateOne(
+            { publicId },
+            { $set: { publicId, title: projToDelete.title || '', deletedAt: new Date() } },
+            { upsert: true }
+          );
+        } catch (e) {
+          console.warn('[DataStore] DeletedAsset record error:', e.message);
+        }
       }
     }
+
     if (projToDelete && projToDelete.thumbnailPublicId) {
       try {
         console.log(`[DataStore] Deleting Cloudinary thumbnail asset: ${projToDelete.thumbnailPublicId}`);
@@ -503,13 +545,14 @@ export const DataStore = {
       }
     }
 
-    const idx = memoryProjects.findIndex(p => p.id === id || p.slug === id || p._id === id);
+    const idx = memoryProjects.findIndex(
+      p => p.id === cleanId || p.slug === cleanId || p._id === cleanId || String(p._id) === cleanId || p.cloudinaryPublicId === cleanId
+    );
     if (idx !== -1) {
       memoryProjects.splice(idx, 1);
-      savePersistentFile();
-      return true;
     }
-    return Boolean(projToDelete);
+    savePersistentFile();
+    return Boolean(projToDelete || idx !== -1);
   },
 
   syncProjectsFromCloudinary: async () => {
@@ -525,6 +568,26 @@ export const DataStore = {
 
       for (const res of syncRes.resources) {
         const publicId = res.public_id;
+
+        // SAFEGUARD: Never resurrect an intentionally deleted video asset!
+        if (memoryDeletedAssetIds.includes(publicId)) {
+          console.log(`[DataStore Sync] Skipping intentionally deleted asset: ${publicId}`);
+          continue;
+        }
+
+        if (getDbStatus()) {
+          try {
+            const isTombstoned = await DeletedAsset.exists({ publicId });
+            if (isTombstoned) {
+              if (!memoryDeletedAssetIds.includes(publicId)) memoryDeletedAssetIds.push(publicId);
+              console.log(`[DataStore Sync] Skipping tombstoned asset in MongoDB: ${publicId}`);
+              continue;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+
         let dbDoc = null;
 
         if (getDbStatus()) {

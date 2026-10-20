@@ -1,52 +1,6 @@
 {
   "projects": [
     {
-      "id": "proj-bs0f8iw0urdgsl049phm",
-      "title": "Visual Edit — Project 07",
-      "slug": "visual-edit-project-07",
-      "category": "Commercial Ads",
-      "categoryId": "cat-commercials",
-      "description": "Cinematic visual edit created and uploaded to studio portfolio.",
-      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/bs0f8iw0urdgsl049phm.mp4",
-      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/bs0f8iw0urdgsl049phm.jpg",
-      "cloudinaryPublicId": "portfolio_videos/bs0f8iw0urdgsl049phm",
-      "aspectRatio": "1:1",
-      "duration": "0:30",
-      "featured": true,
-      "published": true,
-      "client": "Studio Client",
-      "tags": [
-        "Cinematic",
-        "Visuals"
-      ],
-      "isDemo": false,
-      "createdAt": "2026-10-20T05:00:10Z",
-      "updatedAt": "2026-10-20T05:00:10Z"
-    },
-    {
-      "id": "proj-hxnpqyg9e5xagumoqibj",
-      "title": "Visual Edit — Project 06",
-      "slug": "visual-edit-project-06",
-      "category": "Commercial Ads",
-      "categoryId": "cat-commercials",
-      "description": "Cinematic visual edit created and uploaded to studio portfolio.",
-      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/hxnpqyg9e5xagumoqibj.mp4",
-      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/hxnpqyg9e5xagumoqibj.jpg",
-      "cloudinaryPublicId": "portfolio_videos/hxnpqyg9e5xagumoqibj",
-      "aspectRatio": "1:1",
-      "duration": "0:30",
-      "featured": false,
-      "published": true,
-      "client": "Studio Client",
-      "tags": [
-        "Cinematic",
-        "Pacing"
-      ],
-      "isDemo": false,
-      "createdAt": "2026-10-20T04:54:18Z",
-      "updatedAt": "2026-10-20T04:54:18Z"
-    },
-    {
       "id": "proj-m5wxjeuqprp9wcfix8jf",
       "title": "Visual Edit — Project 05",
       "slug": "visual-edit-project-05",
@@ -114,29 +68,6 @@
       "isDemo": false,
       "createdAt": "2026-10-19T21:32:10Z",
       "updatedAt": "2026-10-19T21:32:10Z"
-    },
-    {
-      "id": "proj-rx76dr01d9w5owjmz1to",
-      "title": "Visual Edit — Project 02",
-      "slug": "visual-edit-project-02",
-      "category": "Travel & Cinematic",
-      "categoryId": "cat-travel",
-      "description": "Cinematic travel sequence with smooth transitions and immersive soundscape.",
-      "videoUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/f_auto,q_auto,vc_auto,w_1080,c_limit/portfolio_videos/rx76dr01d9w5owjmz1to.mp4",
-      "thumbnailUrl": "https://res.cloudinary.com/dleaqmeug/video/upload/so_0,f_auto,q_auto,w_600/portfolio_videos/rx76dr01d9w5owjmz1to.jpg",
-      "cloudinaryPublicId": "portfolio_videos/rx76dr01d9w5owjmz1to",
-      "aspectRatio": "1:1",
-      "duration": "0:30",
-      "featured": false,
-      "published": true,
-      "client": "Studio Client",
-      "tags": [
-        "Travel",
-        "Cinematic"
-      ],
-      "isDemo": false,
-      "createdAt": "2026-10-19T21:26:15Z",
-      "updatedAt": "2026-10-19T21:26:15Z"
     },
     {
       "id": "proj-spt43ekpedpgy3kln3bd",
@@ -650,5 +581,13 @@
       "role": "admin"
     }
   ],
-  "savedAt": "2026-10-20T05:42:09.346Z"
+  "deletedAssetIds": [
+    "portfolio_videos/bs0f8iw0urdgsl049phm",
+    "portfolio_videos/hxnpqyg9e5xagumoqibj",
+    "portfolio_videos/rx76dr01d9w5owjmz1to",
+    "portfolio_videos/test_vid_1",
+    "portfolio_videos/test_vid_2",
+    "portfolio_videos/test_delete_resurrect"
+  ],
+  "savedAt": "2026-10-20T05:48:56.410Z"
 }

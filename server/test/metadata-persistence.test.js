@@ -120,6 +120,41 @@ async function runTests() {
   assert.strictEqual(syncResult2.count, 0, 'No new duplicates should be created on repeated sync.');
   console.log('✓ Test 7 Passed: Repeated sync created zero duplicates.');
 
+  // Test 8: Deleting a project permanently deletes it and Cloudinary sync NEVER resurrects it
+  console.log('\n[Test 8] Deleting project and verifying sync does not resurrect it...');
+  const delProj = await DataStore.createProject({
+    title: 'Temporary Video To Delete',
+    category: 'Commercial Ads',
+    videoUrl: 'https://res.cloudinary.com/dleaqmeug/video/upload/portfolio_videos/test_delete_resurrect.mp4',
+    thumbnailUrl: 'https://res.cloudinary.com/dleaqmeug/video/upload/portfolio_videos/test_delete_resurrect.jpg',
+    cloudinaryPublicId: 'portfolio_videos/test_delete_resurrect',
+  });
+  const delProjId = delProj.id || delProj._id;
+  await DataStore.deleteProject(delProjId);
+
+  // Check it is deleted
+  const checkDeleted = await DataStore.getProjectByIdOrSlug(delProjId);
+  assert.strictEqual(checkDeleted, null, 'Deleted project should return null');
+
+  // Simulate Cloudinary still reporting this asset (e.g. sync run)
+  CloudinaryService.syncVideosFromCloudinary = async () => ({
+    success: true,
+    resources: [
+      {
+        public_id: 'portfolio_videos/test_delete_resurrect',
+        created_at: new Date().toISOString(),
+        width: 1920,
+        height: 1080,
+      },
+    ],
+  });
+
+  const syncResult3 = await DataStore.syncProjectsFromCloudinary();
+  assert.strictEqual(syncResult3.count, 0, 'Intentionally deleted asset must NEVER be resurrected by sync.');
+  const checkResurrect = await DataStore.getProjectByIdOrSlug(delProjId);
+  assert.strictEqual(checkResurrect, null, 'Project must remain deleted after sync.');
+  console.log('✓ Test 8 Passed: Deletion is respected; sync NEVER resurrects deleted assets.');
+
   // Cleanup test projects
   await DataStore.deleteProject(proj1.id || proj1._id);
   await DataStore.deleteProject(proj2.id || proj2._id);

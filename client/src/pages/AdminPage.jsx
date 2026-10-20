@@ -786,6 +786,15 @@ export const AdminPage = () => {
       const data = await res.json();
       if (data.success) {
         showNotification('success', `Project "${proj.title}" and its Cloudinary media deleted.`);
+        setProjects((prev) =>
+          prev.filter(
+            (p) =>
+              (p._id || p.id) !== projId &&
+              String(p._id) !== String(projId) &&
+              p.id !== projId &&
+              (!proj.cloudinaryPublicId || p.cloudinaryPublicId !== proj.cloudinaryPublicId)
+          )
+        );
         loadDashboardData();
       } else {
         alert(data.message || 'Delete failed');
